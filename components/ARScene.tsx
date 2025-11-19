@@ -150,11 +150,19 @@ export default function ARScene() {
         else if (action.intent === 'TIMER') {
             if (action.action === 'stop') {
                 removeTimer(action.label || "");
-                setAiState({type: 'success', data: {label: `Stopped ${action.label}`}, voiceResponse: "Stopped."});
+                setAiState({
+                    type: 'success',
+                    data: { label: `Stopped ${action.label}` },
+                    voiceResponse: "Stopped."
+                });
                 setTimeout(() => setAiState(null), 2000);
             } else if (action.action === 'stop_all') {
                 clearAllTimers();
-                setAiState({type: 'success', data: {label: "All Timers Stopped"}, voiceResponse: "All stopped."});
+                setAiState({
+                    type: 'success',
+                    data: { label: "Timers Cleared" },
+                    voiceResponse: "All stopped."
+                });
                 setTimeout(() => setAiState(null), 2000);
             } else {
                 addTimer(action.seconds, action.label || "Timer");
