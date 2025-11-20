@@ -1,110 +1,171 @@
-import {Html} from '@react-three/drei';
-import {useEffect, useState, useRef} from 'react';
+import { Html } from "@react-three/drei";
+import { useEffect, useState, useRef } from "react";
+import { useCookingState } from "@/state/cookingState";
 
 interface TimerProps {
-    seconds: number;
-    label?: string;
-    customPosition?: [number, number, number];
+  /** Unique ID from the store, used for deletion */
+  id: string;
+  /** Initial duration in seconds */
+  seconds: number;
+  /** Display name (e.g., "Pasta") */
+  label?: string;
+  /** 3D coordinates for stacking [x, y, z] */
+  customPosition?: [number, number, number];
 }
 
-export function Timer({seconds, label = "Timer", customPosition}: TimerProps) {
-    const [timeLeft, setTimeLeft] = useState(seconds);
-    const [isFinished, setIsFinished] = useState(false);
-    const [isVisible, setIsVisible] = useState(true);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
+export function Timer({
+  id,
+  seconds,
+  label = "Timer",
+  customPosition,
+}: TimerProps) {
+  // --- State ---
+  const [timeLeft, setTimeLeft] = useState(seconds);
+  const [isFinished, setIsFinished] = useState(false);
 
-    const playAlarmSound = () => {
-        const alarmSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-        alarmSound.loop = true;
-        alarmSound.volume = 0.5;
-        alarmSound.play().catch(e => console.error("Audio autoplay blocked:", e));
-        audioRef.current = alarmSound;
-    };
+  // --- Refs & Hooks ---
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    const stopAlarm = () => {
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current = null;
-        }
-    };
+  // We only need the specific delete function by ID to prevent "Ghost Gaps"
+  const { removeTimerById } = useCookingState();
 
-    const formatTime = (s: number) => {
-        const minutes = Math.floor(s / 60);
-        const secs = s % 60;
-        return `${minutes}:${secs.toString().padStart(2, '0')}`;
-    };
+  // --- Helpers ---
 
-    const positionVector = customPosition || [5, 0, -2];
+  /**
+   * Plays the alarm sound in a loop.
+   * Uses a standard Google sound asset.
+   */
+  const playAlarmSound = () => {
+    const alarmSound = new Audio(
+      "https://actions.google.com/sounds/v1/alarms/beep_short.ogg",
+    );
+    alarmSound.loop = true;
+    alarmSound.volume = 0.5;
+    alarmSound.play().catch((e) => console.error("Audio autoplay blocked:", e));
+    audioRef.current = alarmSound;
+  };
 
-    useEffect(() => {
-        console.log("Restarting the Timer:", seconds);
-        setTimeLeft(seconds);
-        setIsFinished(false);
-        setIsVisible(true);
-    }, [seconds]);
+  /**
+   * Stops the audio immediately and clears the ref.
+   */
+  const stopAlarm = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+  };
 
-    // Countdown Logic
-    useEffect(() => {
-        if (timeLeft > 0) {
-            const interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-            return () => clearInterval(interval);
-        } else {
-            // Time is up!
-            if (!isFinished) {
-                setIsFinished(true);
-                playAlarmSound();
-            }
-        }
-    }, [timeLeft]);
+  /**
+   * Formats seconds into MM:SS
+   */
+  const formatTime = (s: number) => {
+    const minutes = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
+  };
 
-    // "Self-Destruct" Logic
-    useEffect(() => {
-        if (isFinished) {
-            const vanishTimer = setTimeout(() => {
-                console.log("⏰ Auto-dismissing alarm...");
-                stopAlarm();
-                setIsVisible(false);
-            }, 30000);
+  // Default to right-side stacking if no position provided
+  const positionVector = customPosition || [5, 0, -2];
 
-            return () => clearTimeout(vanishTimer);
-        }
-    }, [isFinished]);
+  // --- Effects ---
 
-    // Cleanup on unmount (Manual Stop)
-    useEffect(() => {
-        return () => stopAlarm();
-    }, []);
+  /**
+   * Reset Logic:
+   * If the AI updates the seconds (e.g., "Change timer to 5 mins"),
+   * this resets the countdown state.
+   */
+  useEffect(() => {
+    console.log("🔄 Timer Updated:", seconds);
+    setTimeLeft(seconds);
+    setIsFinished(false);
+    stopAlarm(); // Stop any ringing alarms if reset
+  }, [seconds]);
 
-    // 3. NEW: If not visible, render nothing
-    if (!isVisible) return null;
+  /**
+   * Core Countdown Loop:
+   * Decrements time every second. Triggers alarm at 0.
+   */
+  useEffect(() => {
+    if (timeLeft > 0) {
+      const interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
+      return () => clearInterval(interval);
+    } else {
+      // Time is up!
+      if (!isFinished) {
+        setIsFinished(true);
+        playAlarmSound();
+      }
+    }
+  }, [timeLeft, isFinished]); // Added isFinished dependency for safety
 
-    return (
-        <group position={positionVector}>
-            <Html transform occlude scale={0.4}>
-                <div className={`
+  /**
+   * Self-Destruct Sequence:
+   * Automatically removes the timer from the Global Store after 30 seconds of ringing.
+   * This fixes the "Ghost Space" bug because the store updates the list length.
+   */
+  useEffect(() => {
+    if (isFinished) {
+      const vanishTimer = setTimeout(() => {
+        console.log(`⏰ Auto-removing timer ${id} from store...`);
+        stopAlarm();
+        removeTimerById(id); // <--- This triggers the stack realignment
+      }, 30000);
+
+      return () => clearTimeout(vanishTimer);
+    }
+  }, [isFinished, id, removeTimerById]);
+
+  /**
+   * Cleanup:
+   * Ensures audio stops if the user cancels the timer via voice.
+   */
+  useEffect(() => {
+    return () => stopAlarm();
+  }, []);
+
+  // --- Render ---
+
+  return (
+    <group position={positionVector}>
+      {/* Scale 0.4 makes it look like a compact widget/smartwatch interface */}
+      <Html transform occlude scale={0.4}>
+        <div
+          className={`
             w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg transition-all duration-500
-            ${isFinished
-                    ? 'bg-red-500/40 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse'
-                    : 'bg-white/10 border-white/20 shadow-sm'
-                }
-        `}>
+            ${
+              isFinished
+                ? "bg-red-500/40 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse"
+                : "bg-white/10 border-white/20 shadow-sm"
+            }
+        `}
+        >
+          {/* Timer Label */}
           <span
-              className={`uppercase tracking-wider text-[10px] font-bold mb-1 ${isFinished ? 'text-white' : 'text-white/60'}`}>
+            className={`uppercase tracking-wider text-[10px] font-bold mb-1 ${
+              isFinished ? "text-white" : "text-white/60"
+            }`}
+          >
             {isFinished ? "TIME'S UP!" : label}
           </span>
 
-                    <div className="text-4xl font-mono font-medium text-white tracking-tight drop-shadow-sm">
-                        {isFinished ? "0:00" : formatTime(timeLeft)}
-                    </div>
+          {/* Digital Clock Display */}
+          <div className="text-4xl font-mono font-medium text-white tracking-tight drop-shadow-sm">
+            {isFinished ? "0:00" : formatTime(timeLeft)}
+          </div>
 
-                    <div className="h-1 w-full bg-black/20 rounded-full mt-3 overflow-hidden">
-                        <div
-                            className={`h-full transition-all duration-1000 ease-linear ${isFinished ? 'bg-red-500 w-full' : 'bg-white/80'}`}
-                            style={{width: isFinished ? '100%' : `${(timeLeft / seconds) * 100}%`}}
-                        />
-                    </div>
-                </div>
-            </Html>
-        </group>
-    );
+          {/* Progress Bar */}
+          <div className="h-1 w-full bg-black/20 rounded-full mt-3 overflow-hidden">
+            <div
+              className={`h-full transition-all duration-1000 ease-linear ${
+                isFinished ? "bg-red-500 w-full" : "bg-white/80"
+              }`}
+              style={{
+                width: isFinished ? "100%" : `${(timeLeft / seconds) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+      </Html>
+    </group>
+  );
 }

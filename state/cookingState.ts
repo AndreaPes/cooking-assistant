@@ -23,6 +23,7 @@ interface CookingState {
   addTimer: (seconds: number, label: string) => void;
   removeTimer: (labelKeywords: string) => boolean;
   clearAllTimers: () => void;
+  removeTimerById: (id: string) => void;
 }
 
 export const useCookingState = create<CookingState>((set, get) => ({
@@ -58,6 +59,11 @@ export const useCookingState = create<CookingState>((set, get) => ({
         ...state.activeTimers,
         { id: Math.random().toString(36).substring(2, 11), label, seconds },
       ],
+    })),
+
+  removeTimerById: (id) =>
+    set((state) => ({
+      activeTimers: state.activeTimers.filter((t) => t.id !== id),
     })),
 
   removeTimer: (labelKeyword) => {

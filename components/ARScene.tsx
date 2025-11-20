@@ -176,6 +176,14 @@ export default function ARScene() {
             voiceResponse: "Stopped.",
           });
           setTimeout(() => setAiState(null), 2000);
+        } else {
+          console.warn("Timer not found:", action.label);
+          setAiState({
+            type: "error",
+            data: { label: `Timer '${action.label}' not found` },
+            voiceResponse: "Timer not found.",
+          });
+          setTimeout(() => setAiState(null), 2000);
         }
       } else if (action.action === "stop_all") {
         clearAllTimers();
