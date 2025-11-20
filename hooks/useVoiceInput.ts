@@ -6,10 +6,8 @@ export function useVoiceInput() {
 
   // Initialize speech recognition logic
   const startListening = useCallback(() => {
-    // Safety check for Server-Side Rendering (Next.js)
     if (typeof window === "undefined") return;
 
-    // Browser compatibility
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -19,7 +17,7 @@ export function useVoiceInput() {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = false; // Stop automatically after one sentence
+    recognition.continuous = false;
     recognition.lang = "en-US";
 
     // --- Event Handlers ---
@@ -27,7 +25,7 @@ export function useVoiceInput() {
     // 1. Microphone Activated
     recognition.onstart = () => {
       setIsListening(true);
-      setTranscript(""); // CRITICAL: Clear previous text to prevent processing loops
+      setTranscript("");
     };
 
     // 2. Microphone Deactivated (Silence detected)

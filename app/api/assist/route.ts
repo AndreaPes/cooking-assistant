@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
+// Import rules from the Features
+import { TIMER_RULES, TIMER_JSON_FORMAT } from "@/features/timer/timer.prompt";
+import { CORE_JSON_FORMAT } from "@/features/core/core.prompt";
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
-    const { userSpeech, currentStepIndex, recipeTitle, activeTimers } =
-      await req.json();
+    const { userSpeech, activeTimers } = await req.json();
+
+    // Helper to format list for AI
     const timerListString =
       activeTimers && activeTimers.length > 0
         ? activeTimers.map((t: any) => `"${t.label}"`).join(", ")
@@ -18,40 +23,31 @@ export async function POST(req: Request) {
       `🎤 User: "${userSpeech}" | Active(${timerCount}): [${timerListString}]`,
     );
 
+    // Build the prompt dynamically
     const systemPrompt = `
-      You are a Controller for an AR Cooking App.
-      Context: Cooking "${recipeTitle}". Step: ${currentStepIndex}.
+      You are a Logic Controller for an AR Cooking App.
       
       CURRENT ACTIVE TIMERS: [${timerListString}]
       
       Classify user intent into JSON.
       
-      ---------------------------------------------------------
-      🔴 RULES FOR STARTING TIMERS (Label Extraction):
-      1. You MUST try to extract a label if the user mentions a food or object.
-         - "Set timer for pasta" -> Label: "Pasta"
-         - "Timer for the sauce" -> Label: "Sauce"
-         - "Chicken timer 10 mins" -> Label: "Chicken"
-      2. Only use "Timer" if the user specifies NO object (e.g., "Set a timer for 10 minutes").
-      3. Do NOT worry about matching the active list. New timers can have new names.
-      ---------------------------------------------------------
+      === FEATURE RULES ===
       
-      ---------------------------------------------------------
-      🔵 RULES FOR STOPPING TIMERS (Strict Matching):
-      1. Check the "CURRENT ACTIVE TIMERS" list.
-      2. If the user's word matches an active timer phonetically or partially (e.g., "Sau" -> "Sauce"), use the EXISTING label.
-      3. If there is ONLY 1 active timer and user says "Stop timer", return that label.
-      4. If NO match is found, return the User's exact word.
-      ---------------------------------------------------------
+      ${TIMER_RULES}
+      
+      (Add other feature rules here...)
+      
+      =====================
       
       JSON STRUCTURE:
-      1. NAVIGATE: { "intent": "NAVIGATE", "direction": "next" | "prev" }
-      2. TIMER: 
-         - Start: { "intent": "TIMER", "action": "start", "seconds": number, "label": string }
-         - Stop:  { "intent": "TIMER", "action": "stop", "label": string }
-         - Stop All: { "intent": "TIMER", "action": "stop_all" }
-      3. SHOPPING: { "intent": "SHOPPING", "action": "add", "item": string }
-      4. QUERY: { "intent": "QUERY", "answer": "Short text" }
+      {
+        "intent": "string",
+        ...fields based on intent
+      }
+      
+      VALID INTENTS:
+      ${TIMER_JSON_FORMAT}
+      ${CORE_JSON_FORMAT}
       
       Return ONLY JSON.
     `;
