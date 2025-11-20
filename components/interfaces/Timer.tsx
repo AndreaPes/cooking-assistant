@@ -13,45 +13,6 @@ export function Timer({seconds, label = "Timer", customPosition}: TimerProps) {
     const [isVisible, setIsVisible] = useState(true);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    useEffect(() => {
-        console.log("Restarting the Timer:", seconds);
-        setTimeLeft(seconds);
-        setIsFinished(false);
-        setIsVisible(true);
-    }, [seconds]);
-
-    // Countdown Logic
-    useEffect(() => {
-        if (timeLeft > 0) {
-            const interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-            return () => clearInterval(interval);
-        } else {
-            // Time is up!
-            if (!isFinished) {
-                setIsFinished(true);
-                playAlarmSound();
-            }
-        }
-    }, [timeLeft]);
-
-    // 2. "Self-Destruct" Logic
-    useEffect(() => {
-        if (isFinished) {
-            const vanishTimer = setTimeout(() => {
-                console.log("⏰ Auto-dismissing alarm...");
-                stopAlarm();
-                setIsVisible(false);
-            }, 30000);
-
-            return () => clearTimeout(vanishTimer);
-        }
-    }, [isFinished]);
-
-    // Cleanup on unmount (Manual Stop)
-    useEffect(() => {
-        return () => stopAlarm();
-    }, []);
-
     const playAlarmSound = () => {
         const alarmSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
         alarmSound.loop = true;
@@ -74,6 +35,45 @@ export function Timer({seconds, label = "Timer", customPosition}: TimerProps) {
     };
 
     const positionVector = customPosition || [5, 0, -2];
+
+    useEffect(() => {
+        console.log("Restarting the Timer:", seconds);
+        setTimeLeft(seconds);
+        setIsFinished(false);
+        setIsVisible(true);
+    }, [seconds]);
+
+    // Countdown Logic
+    useEffect(() => {
+        if (timeLeft > 0) {
+            const interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
+            return () => clearInterval(interval);
+        } else {
+            // Time is up!
+            if (!isFinished) {
+                setIsFinished(true);
+                playAlarmSound();
+            }
+        }
+    }, [timeLeft]);
+
+    // "Self-Destruct" Logic
+    useEffect(() => {
+        if (isFinished) {
+            const vanishTimer = setTimeout(() => {
+                console.log("⏰ Auto-dismissing alarm...");
+                stopAlarm();
+                setIsVisible(false);
+            }, 30000);
+
+            return () => clearTimeout(vanishTimer);
+        }
+    }, [isFinished]);
+
+    // Cleanup on unmount (Manual Stop)
+    useEffect(() => {
+        return () => stopAlarm();
+    }, []);
 
     // 3. NEW: If not visible, render nothing
     if (!isVisible) return null;

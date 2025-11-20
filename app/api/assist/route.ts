@@ -13,6 +13,13 @@ export async function POST(req: Request) {
       
       Classify user intent into a JSON Action:
       
+      RULES FOR TIMERS:
+      1. If user wants to stop a timer, check the "CURRENT ACTIVE TIMERS" list.
+      2. Perform "fuzzy matching" yourself. 
+         - Example: Active is "Sauce". User says "Cancel Tomato" or "Cancel So". 
+         - YOU should output label: "Sauce".
+      3. If the user says "Stop timer" and there is only one active, use that label.
+      
       1. NAVIGATE: User says "next", "back", "start", "repeat".
          -> Action: { "intent": "NAVIGATE", "direction": "next" | "prev" | "repeat" }
          

@@ -1,38 +1,55 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 export function useVoiceInput() {
-    const [isListening, setIsListening] = useState(false);
-    const [transcript, setTranscript] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
 
-    // Initialize speech recognition
-    const startListening = useCallback(() => {
-        if (typeof window === 'undefined') return;
+  // Initialize speech recognition logic
+  const startListening = useCallback(() => {
+    // Safety check for Server-Side Rendering (Next.js)
+    if (typeof window === "undefined") return;
 
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    // Browser compatibility
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
 
-        if (!SpeechRecognition) {
-            alert("Browser does not support speech recognition.");
-            return;
-        }
+    if (!SpeechRecognition) {
+      alert("Browser does not support speech recognition.");
+      return;
+    }
 
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.lang = 'en-US';
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false; // Stop automatically after one sentence
+    recognition.lang = "en-US";
 
-        // 2. Use the specific type we defined to satisfy ESLint
-        recognition.onresult = (event: SpeechRecognitionEvent) => {
-            const text = event.results[0][0].transcript;
-            setTranscript(text);
-        };
+    // --- Event Handlers ---
 
-        // Optional: Handle errors cleanly
-        recognition.onerror = (event: SpeechRecognitionError) => {
-            console.error("Speech recognition error", event.error);
-            setIsListening(false);
-        };
+    // 1. Microphone Activated
+    recognition.onstart = () => {
+      setIsListening(true);
+      setTranscript(""); // CRITICAL: Clear previous text to prevent processing loops
+    };
 
-        recognition.start();
-    }, []);
+    // 2. Microphone Deactivated (Silence detected)
+    recognition.onend = () => {
+      setIsListening(false);
+    };
 
-    return { isListening, transcript, startListening };
+    // 3. Transcription Received
+    recognition.onresult = (event: any) => {
+      const text = event.results[0][0].transcript;
+      setTranscript(text);
+    };
+
+    // 4. Error Handling
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      setIsListening(false);
+    };
+
+    // Begin recording
+    recognition.start();
+  }, []);
+
+  return { isListening, transcript, startListening };
 }

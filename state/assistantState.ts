@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 
 export enum AssistantStatus {
-    IDLE = 'idle',             // Doing nothing
-    LISTENING = 'listening',   // Microphone is on
-    PROCESSING = 'processing', // Waiting for OpenAI to reply
-    SPEAKING = 'speaking',     // TTS is playing (optional for later)
+    IDLE = 'idle',
+    LISTENING = 'listening',
+    PROCESSING = 'processing',
+    SPEAKING = 'speaking',
 }
 
 interface AssistantState {
@@ -17,12 +17,11 @@ export const useAssistantState = create<AssistantState>((set) => ({
     setStatus: (status) => set({ status }),
 }));
 
-// 2. Helper to get colors for your UI
 export const getStatusColor = (status: AssistantStatus) => {
     switch (status) {
-        case AssistantStatus.LISTENING: return '#ef4444'; // Red (Recording)
-        case AssistantStatus.PROCESSING: return '#f59e0b'; // Orange (Thinking)
-        case AssistantStatus.SPEAKING: return '#3b82f6';  // Blue (Talking)
-        default: return '#ffffff'; // White (Idle)
+        case AssistantStatus.LISTENING: return '#ef4444';
+        case AssistantStatus.PROCESSING: return '#f59e0b';
+        case AssistantStatus.SPEAKING: return '#3b82f6';
+        default: return '#ffffff';
     }
 };

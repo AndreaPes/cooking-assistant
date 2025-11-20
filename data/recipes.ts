@@ -1,14 +1,14 @@
 export interface RecipeStep {
-    text: string;           // The instruction
-    timerSeconds?: number;  // Req A2: Auto-timer duration
-    warning?: string;       // Req A6: Safety warning
-    ingredients?: string[]; // Req A3: Ingredients needed specifically for this step
+    text: string;
+    timerSeconds?: number;
+    warning?: string;
+    ingredients?: string[];
 }
 
 export interface Recipe {
     id: string;
     title: string;
-    ingredients: string[];  // Full list for the "Ingredients" view
+    ingredients: string[];
     steps: RecipeStep[];
 }
 
@@ -23,7 +23,7 @@ export const PASTA_RECIPE: Recipe = {
         },
         {
             text: "Add spaghetti to the boiling water.",
-            timerSeconds: 600, // 10 Minutes
+            timerSeconds: 600,
             warning: "Water is boiling! Do not drop pasta abruptly."
         },
         {
