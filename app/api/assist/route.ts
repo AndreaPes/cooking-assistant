@@ -4,8 +4,13 @@ import OpenAI from "openai";
 // Import rules from the Features
 import { TIMER_RULES, TIMER_JSON_FORMAT } from "@/features/timer/timer.prompt";
 import { CORE_JSON_FORMAT } from "@/features/core/core.prompt";
+import { SUGGEST_RECIPE_RULES, SUGGEST_RECIPE_JSON_FORMAT} from "@/features/suggest_recipe/suggest_recipe.prompt";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.GOOGLE_API_KEY,
+  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+});
 
 export async function POST(req: Request) {
   try {
@@ -34,7 +39,7 @@ export async function POST(req: Request) {
       === FEATURE RULES ===
       
       ${TIMER_RULES}
-      
+      ${SUGGEST_RECIPE_RULES}
       (Add other feature rules here...)
       
       =====================
@@ -48,12 +53,13 @@ export async function POST(req: Request) {
       VALID INTENTS:
       ${TIMER_JSON_FORMAT}
       ${CORE_JSON_FORMAT}
+      ${SUGGEST_RECIPE_JSON_FORMAT}
       
       Return ONLY JSON.
     `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gemini-2.0-flash",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userSpeech },
