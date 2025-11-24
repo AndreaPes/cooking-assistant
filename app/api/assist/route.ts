@@ -70,6 +70,7 @@ export async function POST(req: Request) {
 
     const content = JSON.parse(response.choices[0].message.content || "{}");
     console.log("AI Output:", content);
+    console.log("AI Output:", JSON.stringify(content, null, 2));
     return NextResponse.json(content);
   } catch (error) {
     console.error(error);
