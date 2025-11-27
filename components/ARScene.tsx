@@ -14,11 +14,14 @@ import {
   AssistantStatus,
   getStatusColor,
 } from "@/state/assistantState";
+import { useFridgeInventoryState } from "@/state/slices/fridgeInventorySlice";
 import { AIResponse } from "@/types/interfaces";
+import { detectIngredientsFromImage } from "@/features/fridge-inventory/detectIngredients";
 
 const store = createXRStore({ domOverlay: true });
 
 export default function ARScene() {
+  const videoRef = useRef<HTMLVideoElement>(null);
   // Global State
   const { addTimer, removeTimer, clearAllTimers, activeTimers } =
     useCookingState();
@@ -28,6 +31,7 @@ export default function ARScene() {
   const [aiState, setAiState] = useState<AIResponse | null>(null);
   const { isListening, transcript, startListening } = useVoiceInput();
   const [isCameraMode, setIsCameraMode] = useState(false);
+  const { setFridgeInventory } = useFridgeInventoryState();
 
   const lastProcessedText = useRef("");
 
@@ -66,7 +70,7 @@ export default function ARScene() {
       const action = await res.json();
       console.log("🤖 AI Intent:", action);
 
-      handleIntent(action);
+      await handleIntent(action);
       setStatus(AssistantStatus.IDLE);
     } catch (error) {
       console.error("API Error", error);
@@ -75,7 +79,7 @@ export default function ARScene() {
   };
 
   // --- INTENT ROUTER ---
-  const handleIntent = (action: any) => {
+  const handleIntent = async (action: any) => {
     if (action.intent === "TIMER") {
       if (action.action === "stop") {
         const didRemove = removeTimer(action.label || "");
@@ -112,6 +116,30 @@ export default function ARScene() {
         voiceResponse: "Here is the answer.",
       });
       setTimeout(() => setAiState(null), 6000);
+    } else if (action.intent === "FRIDGE_INVENTORY") {
+      if (action.action === "hide") {
+        // Hide the ingredients box
+        setAiState(null);
+      } else if (action.action === "scan") {
+        if (videoRef.current) {
+          setStatus(AssistantStatus.PROCESSING);
+          const items = await detectIngredientsFromImage(videoRef.current);
+          setFridgeInventory(items);
+          setAiState({
+            type: "fridge_inventory",
+            data: { items },
+            voiceResponse: `I detected ${items.length} items.`,
+          });
+          setStatus(AssistantStatus.IDLE);
+        } else {
+          setAiState({
+            type: "error",
+            data: { label: "Camera not available" },
+            voiceResponse: "I can't access the camera right now.",
+          });
+        }
+      }
+      return;
     }
   };
 
@@ -122,8 +150,7 @@ export default function ARScene() {
 
   return (
     <div className="h-full w-full relative bg-gray-900">
-      {isCameraMode && <WebcamFeed />}
-
+      {isCameraMode && <WebcamFeed videoRef={videoRef} />}
       <div className="absolute z-10 top-4 right-4 flex flex-col gap-3 items-end">
         <button
           onClick={handleMicClick}
@@ -144,6 +171,21 @@ export default function ARScene() {
                     ${isCameraMode ? "bg-red-500/80 text-white border-red-400" : "bg-white/10 text-white border-white/20 hover:bg-white/20"}`}
         >
           {isCameraMode ? "🚫 Stop Camera" : "📷 Start AR Mode"}
+        </button>
+        <button
+          onClick={async () => {
+            if (!videoRef.current) return;
+            const items = await detectIngredientsFromImage(videoRef.current);
+            setFridgeInventory(items);
+            setAiState({
+              type: "fridge_inventory",
+              data: { items },
+              voiceResponse: `I detected ${items.length} items.`,
+            });
+          }}
+          className="backdrop-blur px-4 py-2 rounded-lg text-sm font-medium transition-all border bg-white/10 text-white border-white/20 hover:bg-white/20"
+        >
+          🥬 Scan Fridge
         </button>
       </div>
 

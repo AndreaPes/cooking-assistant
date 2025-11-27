@@ -4,6 +4,7 @@ import { useCookingState } from "@/state/cookingState";
 // --- FEATURE COMPONENTS ---
 import { Timer } from "@/features/timer/Timer";
 import { NotificationBadge } from "@/features/notifications/NotificationBadge";
+import { FridgeInventory } from "@/features/fridge-inventory/FridgeInventory";
 
 interface ManagerProps {
   activeInterface: AIResponse | null;
@@ -46,6 +47,10 @@ export function InterfaceManager({ activeInterface }: ManagerProps) {
       // Timers are handled in the stack below, so we return null here
       case "timer":
         return null;
+
+      // --- FRIDGE INVENTORY ---
+      case "fridge_inventory":
+        return <FridgeInventory items={data.items || []} />;
 
       default:
         console.warn(`Unknown interface type: ${type}`);

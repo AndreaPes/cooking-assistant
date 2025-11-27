@@ -1,10 +1,13 @@
+import { FridgeItem } from "@/state/slices/fridgeInventorySlice";
+
 export type InterfaceType =
   | "instruction"
   | "timer"
   | "warning"
   | "success"
   | "idle"
-  | "error";
+  | "error"
+  | "fridge_inventory";
 
 // This is the shape of the JSON the AI *must* return
 export interface AIResponse {
@@ -13,6 +16,7 @@ export interface AIResponse {
     text?: string; // For instructions/warnings
     seconds?: number; // For timers
     label?: string; // For timers (e.g. "Pasta")
+    items?: FridgeItem[]; // For fridge inventory
   };
   voiceResponse: string; // What the AI should speak back (optional for now)
 }

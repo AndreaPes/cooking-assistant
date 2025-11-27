@@ -4,6 +4,7 @@ import OpenAI from "openai";
 // Import rules from the Features
 import { TIMER_RULES, TIMER_JSON_FORMAT } from "@/features/timer/timer.prompt";
 import { CORE_JSON_FORMAT } from "@/features/core/core.prompt";
+import { FRIDGE_INVENTORY_RULES, FRIDGE_INVENTORY_JSON_FORMAT } from "@/features/fridge-inventory/FridgeInventory.prompt";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -34,6 +35,8 @@ export async function POST(req: Request) {
       === FEATURE RULES ===
       
       ${TIMER_RULES}
+
+      ${FRIDGE_INVENTORY_RULES}
       
       (Add other feature rules here...)
       
@@ -48,6 +51,7 @@ export async function POST(req: Request) {
       VALID INTENTS:
       ${TIMER_JSON_FORMAT}
       ${CORE_JSON_FORMAT}
+      ${FRIDGE_INVENTORY_JSON_FORMAT}
       
       Return ONLY JSON.
     `;
