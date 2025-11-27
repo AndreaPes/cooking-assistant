@@ -3,6 +3,7 @@ import { useCookingState } from "@/state/cookingState";
 
 // --- FEATURE COMPONENTS ---
 import { Timer } from "@/features/timer/Timer";
+import { ShoppingList } from "@/features/shopping_list/shopping_list";
 import { NotificationBadge } from "@/features/notifications/NotificationBadge";
 
 interface ManagerProps {
@@ -46,6 +47,13 @@ export function InterfaceManager({ activeInterface }: ManagerProps) {
       // Timers are handled in the stack below, so we return null here
       case "timer":
         return null;
+
+      case "shopping_list":
+        return (
+          <ShoppingList
+            label={data.label || "Shopping List"}
+            customPosition={[5, 0, -2]}
+          />);
 
       default:
         console.warn(`Unknown interface type: ${type}`);

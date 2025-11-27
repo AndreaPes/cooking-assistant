@@ -15,6 +15,7 @@ import {
   getStatusColor,
 } from "@/state/assistantState";
 import { AIResponse } from "@/types/interfaces";
+import { useShoppingState } from "@/state/shoppingState";
 
 const store = createXRStore({ domOverlay: true });
 
@@ -28,6 +29,9 @@ export default function ARScene() {
   const [aiState, setAiState] = useState<AIResponse | null>(null);
   const { isListening, transcript, startListening } = useVoiceInput();
   const [isCameraMode, setIsCameraMode] = useState(false);
+
+  // Shopping store actions
+  const { addItem: addShopItem, removeItem: removeShopItem, clearAll: clearShopping, showAll } = useShoppingState();
 
   const lastProcessedText = useRef("");
 
@@ -66,7 +70,7 @@ export default function ARScene() {
       const action = await res.json();
       console.log("🤖 AI Intent:", action);
 
-      handleIntent(action);
+      await handleIntent(action);
       setStatus(AssistantStatus.IDLE);
     } catch (error) {
       console.error("API Error", error);
@@ -75,10 +79,10 @@ export default function ARScene() {
   };
 
   // --- INTENT ROUTER ---
-  const handleIntent = (action: any) => {
+  const handleIntent = async (action: any) => {
     if (action.intent === "TIMER") {
       if (action.action === "stop") {
-        const didRemove = removeTimer(action.label || "");
+        const didRemove = await removeTimer(action.label || "");
         if (didRemove) {
           setAiState({
             type: "success",
@@ -105,6 +109,7 @@ export default function ARScene() {
       } else {
         addTimer(action.seconds, action.label || "Timer");
       }
+
     } else if (action.intent === "QUERY") {
       setAiState({
         type: "instruction",
@@ -112,6 +117,65 @@ export default function ARScene() {
         voiceResponse: "Here is the answer.",
       });
       setTimeout(() => setAiState(null), 6000);
+
+    } else if (action.intent === "SHOPPING_LIST") {
+      // Actions: add, remove, clear, show
+      if (action.action === "add") {
+        console.log("Adding shopping item:", action);
+        // AI may return the item under `item` or `label` depending on the prompt/schema.
+        const itemLabel = action.label ?? action.item ?? null;
+        if (itemLabel) {
+          // Use quantity from the AI when provided, default to 1
+          addShopItem(itemLabel, action.quantity ?? 1);
+          // Show a short success notification instead of the full list
+          const qtyText = action.quantity ? ` × ${action.quantity}` : "";
+          setAiState({
+            type: "success",
+            data: { label: `Added ${itemLabel}${qtyText}` },
+            voiceResponse: `Added ${itemLabel}`,
+          });
+          setTimeout(() => setAiState(null), 6000);
+        }
+      } else if (action.action === "remove") {
+        const removeLabel = action.label ?? action.item ?? "";
+        const didRemove = await removeShopItem(removeLabel);
+        if (didRemove) {
+          setAiState({
+            type: "success",
+            data: { label: `Removed ${removeLabel}` },
+            voiceResponse: `Removed ${removeLabel}`,
+          });
+        } else {
+          setAiState({
+            type: "error",
+            data: { label: `Item not found: ${removeLabel}` },
+            voiceResponse: `Item not found`,
+          });
+        }
+        setTimeout(() => setAiState(null), 6000);
+      } else if (action.action === "clear") {
+        clearShopping();
+        setAiState({
+          type: "success",
+          data: { label: "Shopping list cleared" },
+          voiceResponse: "Cleared shopping list",
+        });
+        setTimeout(() => setAiState(null), 6000);
+      } else if (action.action === "show") {
+        // Fetch the latest items from the backend and show the full shopping list UI
+        try {
+          await showAll();
+        } catch (err) {
+          console.error('showAll failed', err);
+        }
+
+        setAiState({
+          type: "shopping_list",
+          data: { label: "Shopping" },
+          voiceResponse: "Showing shopping list",
+        });
+        setTimeout(() => setAiState(null), 6000);
+      }
     }
   };
 
