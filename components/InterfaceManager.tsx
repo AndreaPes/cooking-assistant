@@ -5,6 +5,7 @@ import { useCookingState } from "@/state/cookingState";
 import { Timer } from "@/features/timer/Timer";
 import { NotificationBadge } from "@/features/notifications/NotificationBadge";
 import { FridgeInventory } from "@/features/fridge-inventory/FridgeInventory";
+import { SuggestRecipe } from "@/features/suggest_recipe/SuggestRecipe";
 
 interface ManagerProps {
   activeInterface: AIResponse | null;
@@ -43,6 +44,9 @@ export function InterfaceManager({ activeInterface }: ManagerProps) {
         return (
           <NotificationBadge label={data.text || "Info"} variant="neutral" />
         );
+
+      case "suggest_recipe":
+        return <SuggestRecipe data={data} />;        
 
       // Timers are handled in the stack below, so we return null here
       case "timer":

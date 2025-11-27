@@ -5,8 +5,13 @@ import OpenAI from "openai";
 import { TIMER_RULES, TIMER_JSON_FORMAT } from "@/features/timer/timer.prompt";
 import { CORE_JSON_FORMAT } from "@/features/core/core.prompt";
 import { FRIDGE_INVENTORY_RULES, FRIDGE_INVENTORY_JSON_FORMAT } from "@/features/fridge-inventory/FridgeInventory.prompt";
+import { SUGGEST_RECIPE_RULES, SUGGEST_RECIPE_JSON_FORMAT} from "@/features/suggest_recipe/suggest_recipe.prompt";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.GOOGLE_API_KEY,
+  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+});
 
 export async function POST(req: Request) {
   try {
@@ -37,7 +42,8 @@ export async function POST(req: Request) {
       ${TIMER_RULES}
 
       ${FRIDGE_INVENTORY_RULES}
-      
+
+      ${SUGGEST_RECIPE_RULES}
       (Add other feature rules here...)
       
       =====================
@@ -52,12 +58,13 @@ export async function POST(req: Request) {
       ${TIMER_JSON_FORMAT}
       ${CORE_JSON_FORMAT}
       ${FRIDGE_INVENTORY_JSON_FORMAT}
+      ${SUGGEST_RECIPE_JSON_FORMAT}
       
       Return ONLY JSON.
     `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gemini-2.0-flash",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userSpeech },
@@ -68,6 +75,7 @@ export async function POST(req: Request) {
 
     const content = JSON.parse(response.choices[0].message.content || "{}");
     console.log("AI Output:", content);
+    console.log("AI Output:", JSON.stringify(content, null, 2));
     return NextResponse.json(content);
   } catch (error) {
     console.error(error);

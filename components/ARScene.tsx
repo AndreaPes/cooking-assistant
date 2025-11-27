@@ -61,6 +61,7 @@ export default function ARScene() {
     try {
       const res = await fetch("/api/assist", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userSpeech: transcript,
           activeTimers: activeTimers,
@@ -70,6 +71,27 @@ export default function ARScene() {
       const action = await res.json();
       console.log("🤖 AI Intent:", action);
 
+      // handle interface-based responses (e.g. suggest_recipe)
+      if (action.interface || action.type) {
+        const uiType = (action.type ?? action.interface) as AIResponse["type"];
+
+        setAiState({
+          type: uiType,
+          data:
+            action.data ??
+            {
+              text: action.text,
+              label: action.label,
+              seconds: action.seconds,
+            },
+          voiceResponse: action.voiceResponse ?? "",
+        });
+
+        setStatus(AssistantStatus.IDLE);
+        return;
+      }
+
+      // Legacy intent-based logic (timers, queries, etc.)
       await handleIntent(action);
       setStatus(AssistantStatus.IDLE);
     } catch (error) {
