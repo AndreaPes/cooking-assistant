@@ -194,21 +194,6 @@ export default function ARScene() {
         >
           {isCameraMode ? "🚫 Stop Camera" : "📷 Start AR Mode"}
         </button>
-        <button
-          onClick={async () => {
-            if (!videoRef.current) return;
-            const items = await detectIngredientsFromImage(videoRef.current);
-            setFridgeInventory(items);
-            setAiState({
-              type: "fridge_inventory",
-              data: { items },
-              voiceResponse: `I detected ${items.length} items.`,
-            });
-          }}
-          className="backdrop-blur px-4 py-2 rounded-lg text-sm font-medium transition-all border bg-white/10 text-white border-white/20 hover:bg-white/20"
-        >
-          🥬 Scan Fridge
-        </button>
       </div>
 
       <Canvas gl={{ alpha: true }}>
