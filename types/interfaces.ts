@@ -1,3 +1,5 @@
+import { FridgeItem } from "@/state/slices/fridgeInventorySlice";
+
 export type InterfaceType =
   | "instruction"
   | "timer"
@@ -5,50 +7,62 @@ export type InterfaceType =
   | "warning"
   | "success"
   | "idle"
-  | "error";
+  | "error"
+  | "fridge_inventory"
+  | "suggest_recipe";
 
-// Specific data shapes per interface type (discriminated union)
-export interface InstructionResponse {
-  type: "instruction";
-  data: {
-    text: string; // Text to show to the user
-  };
-  voiceResponse?: string;
+export interface StepTimer {
+    /** 1-based index of the step in the steps[] array */
+    stepIndex: number;
+    /** Duration in minutes for this step (boiling, baking, resting, etc.) */
+    minutes: number;
+    /** Human label for the timer, e.g. "Boil pasta" or "Bake cake" */
+    label: string;
+  }
+  
+export interface IngredientDetailed {
+  /** Ingredient name, e.g. "spaghetti", "olive oil" */
+  name: string;
+  /** Numeric quantity, e.g. 200 */
+  quantity: number;
+  /** Unit, e.g. "g", "ml", "tbsp", "tsp", "piece", "clove" */
+  unit: string;
+  /** true if the ingredient comes from the user's list, false if it is extra */
+  fromUserIngredients: boolean;
 }
 
-export interface TimerResponse {
-  type: "timer";
-  data: {
-    seconds: number; // seconds for the timer
-    label?: string; // optional label (e.g. "Pasta")
-    id?: string; // optional id for matching existing timers
-  };
-  voiceResponse?: string;
-}
+export interface RecipeSuggestionData {
+  recipeTitle?: string;
+  ingredientsYouHave?: string[];
+  ingredientsMissing?: string[];
 
-export interface ShoppingListResponse {
-  type: "shopping_list";
-  data: {
-    // Minimal fields used by the UI factory. Add more if your UI needs them.
-    label?: string;
-    quantity?: number;
-    // Optionally provide items when the AI returns the whole list
-    items?: Array<{ label: string; quantity?: number | null }>;
-  };
-  voiceResponse?: string;
-}
+  ingredientsDetailed?: IngredientDetailed[];
 
-export interface NotificationResponse {
-  type: "warning" | "success" | "error" | "idle";
-  data: {
-    text?: string;
-    label?: string;
-  };
-  voiceResponse?: string;
-}
+  steps?: string[];
+  stepTimers?: StepTimer[];
 
-// The discriminated union that callers should use.
-export type AIResponse = InstructionResponse | TimerResponse | ShoppingListResponse | NotificationResponse;
+  estimatedTimeMinutes?: number;
+  difficulty?: "easy" | "medium" | "hard";
+}
+  
+  
+// This is the shape of the JSON the AI *must* return
+export interface AIResponse {
+  type: InterfaceType;
+  data: {
+    text?: string; // For instructions/warnings
+    seconds?: number; // For timers
+    label?: string; // For timers (e.g. "Pasta")
+    id?: string;               // per identificare un timer specifico
+    // SHOPPING LIST
+    quantity?: number;         // quantità singola (es. "add 2 eggs")
+    shoppingItems?: Array<{ label: string; quantity?: number | null }>; // lista completa della shopping list
+
+    // FRIDGE INVENTORY
+    fridgeItems?: FridgeItem[]; // contenuto del frigo
+  } & RecipeSuggestionData; 
+  voiceResponse: string; // What the AI should speak back (optional for now)
+}
 
 /* Usage notes:
  - In code, narrow by `response.type` (switch or if) before accessing type-specific fields.
