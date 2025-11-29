@@ -15,15 +15,15 @@ import {
   getStatusColor,
 } from "@/state/assistantState";
 import { useFridgeInventoryState } from "@/state/slices/fridgeInventorySlice";
-import { AIResponse } from "@/types/interfaces";
+import { AIResponse, RecipeSuggestionData } from "@/types/interfaces";
 import { useShoppingState } from "@/state/shoppingState";
 import { detectIngredientsFromImage } from "@/features/fridge-inventory/detectIngredients";
-
 
 const store = createXRStore({ domOverlay: true });
 
 export default function ARScene() {
   const videoRef = useRef<HTMLVideoElement>(null);
+
   // Global State
   const { addTimer, removeTimer, clearAllTimers, activeTimers } =
     useCookingState();
@@ -36,7 +36,12 @@ export default function ARScene() {
   const { setFridgeInventory } = useFridgeInventoryState();
 
   // Shopping store actions
-  const { addItem: addShopItem, removeItem: removeShopItem, clearAll: clearShopping, showAll } = useShoppingState();
+  const {
+    addItem: addShopItem,
+    removeItem: removeShopItem,
+    clearAll: clearShopping,
+    showAll,
+  } = useShoppingState();
 
   const lastProcessedText = useRef("");
 
@@ -51,16 +56,88 @@ export default function ARScene() {
   useEffect(() => {
     if (!isListening && transcript) {
       if (transcript !== lastProcessedText.current) {
-        console.log("✅ Silence detected. Sending to Brain...");
+        console.log("✅ Silence detected. Processing transcript...");
         lastProcessedText.current = transcript;
         processVoice();
       }
     }
-  }, [isListening, transcript, activeTimers]);
+  }, [isListening, transcript, activeTimers, aiState]); // include aiState so nav sees latest
+
+  // --- LOCAL NAVIGATION FOR SUGGEST_RECIPE (open/go back) ---
+  const tryLocalRecipeNavigation = (spoken: string): boolean => {
+    if (!aiState || aiState.type !== "suggest_recipe") return false;
+
+    const data = (aiState.data || {}) as RecipeSuggestionData;
+    const recipes = data.recipes || [];
+    if (recipes.length === 0) return false;
+
+    const lower = spoken.toLowerCase().trim();
+
+    // 1) "go back" / "back to recipes"
+    if (
+      lower === "go back" ||
+      lower === "go back to recipes" ||
+      lower.includes("back to recipes")
+    ) {
+      setAiState({
+        ...aiState,
+        type: "suggest_recipe",
+        data: {
+          ...data,
+          selectedRecipeTitle: "", // falsy => list view in SuggestRecipe
+        },
+        voiceResponse: "",
+      });
+      setStatus(AssistantStatus.IDLE);
+      return true;
+    }
+
+    // 2) "open pasta with tomato sauce", "start cacio e pepe", "show aglio e olio"
+    const openMatch = lower.match(/^(open|start|show)\s+(.+)/);
+    if (openMatch) {
+      const targetName = openMatch[2].trim();
+      if (!targetName) return false;
+
+      const idx = recipes.findIndex(
+        (r) =>
+          r.recipeTitle &&
+          r.recipeTitle.toLowerCase().includes(targetName),
+      );
+
+      if (idx >= 0) {
+        const selectedTitle = recipes[idx].recipeTitle || targetName;
+        setAiState({
+          ...aiState,
+          type: "suggest_recipe",
+          data: {
+            ...data,
+            selectedRecipeTitle: selectedTitle,
+          },
+          voiceResponse: "",
+        });
+        setStatus(AssistantStatus.IDLE);
+        return true;
+      }
+    }
+
+    return false;
+  };
 
   // --- PROCESS VOICE ---
   const processVoice = async () => {
     if (!transcript) return;
+
+    const spoken = transcript.trim();
+    const lower = spoken.toLowerCase();
+
+    // 1) Try local navigation first (does NOT call backend)
+    const handledLocally = tryLocalRecipeNavigation(spoken);
+    if (handledLocally) {
+      console.log("🎛 Handled locally (navigation):", lower);
+      return;
+    }
+
+    // 2) Otherwise call backend as before
     setStatus(AssistantStatus.PROCESSING);
 
     try {
@@ -136,7 +213,6 @@ export default function ARScene() {
       } else {
         addTimer(action.seconds, action.label || "Timer");
       }
-
     } else if (action.intent === "QUERY") {
       setAiState({
         type: "instruction",
@@ -144,17 +220,13 @@ export default function ARScene() {
         voiceResponse: "Here is the answer.",
       });
       setTimeout(() => setAiState(null), 6000);
-
     } else if (action.intent === "SHOPPING_LIST") {
       // Actions: add, remove, clear, show
       if (action.action === "add") {
         console.log("Adding shopping item:", action);
-        // AI may return the item under `item` or `label` depending on the prompt/schema.
         const itemLabel = action.label ?? action.item ?? null;
         if (itemLabel) {
-          // Use quantity from the AI when provided, default to 1
           addShopItem(itemLabel, action.quantity ?? 1);
-          // Show a short success notification instead of the full list
           const qtyText = action.quantity ? ` × ${action.quantity}` : "";
           setAiState({
             type: "success",
@@ -189,11 +261,10 @@ export default function ARScene() {
         });
         setTimeout(() => setAiState(null), 6000);
       } else if (action.action === "show") {
-        // Fetch the latest items from the backend and show the full shopping list UI
         try {
           await showAll();
         } catch (err) {
-          console.error('showAll failed', err);
+          console.error("showAll failed", err);
         }
 
         setAiState({
@@ -205,7 +276,6 @@ export default function ARScene() {
       }
     } else if (action.intent === "FRIDGE_INVENTORY") {
       if (action.action === "hide") {
-        // Hide the ingredients box
         setAiState(null);
       } else if (action.action === "scan") {
         if (videoRef.current) {
@@ -238,6 +308,7 @@ export default function ARScene() {
   return (
     <div className="h-full w-full relative bg-gray-900">
       {isCameraMode && <WebcamFeed videoRef={videoRef} />}
+
       <div className="absolute z-10 top-4 right-4 flex flex-col gap-3 items-end">
         <button
           onClick={handleMicClick}
@@ -255,7 +326,11 @@ export default function ARScene() {
         <button
           onClick={() => setIsCameraMode(!isCameraMode)}
           className={`backdrop-blur px-4 py-2 rounded-lg text-sm font-medium transition-all border
-                    ${isCameraMode ? "bg-red-500/80 text-white border-red-400" : "bg-white/10 text-white border-white/20 hover:bg-white/20"}`}
+                    ${
+                      isCameraMode
+                        ? "bg-red-500/80 text-white border-red-400"
+                        : "bg-white/10 text-white border-white/20 hover:bg-white/20"
+                    }`}
         >
           {isCameraMode ? "🚫 Stop Camera" : "📷 Start AR Mode"}
         </button>

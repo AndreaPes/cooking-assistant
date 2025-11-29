@@ -12,14 +12,14 @@ export type InterfaceType =
   | "suggest_recipe";
 
 export interface StepTimer {
-    /** 1-based index of the step in the steps[] array */
-    stepIndex: number;
-    /** Duration in minutes for this step (boiling, baking, resting, etc.) */
-    minutes: number;
-    /** Human label for the timer, e.g. "Boil pasta" or "Bake cake" */
-    label: string;
-  }
-  
+  /** 1-based index of the step in the steps[] array */
+  stepIndex: number;
+  /** Duration in minutes for this step (boiling, baking, resting, etc.) */
+  minutes: number;
+  /** Human label for the timer, e.g. "Boil pasta" or "Bake cake" */
+  label: string;
+}
+
 export interface IngredientDetailed {
   /** Ingredient name, e.g. "spaghetti", "olive oil" */
   name: string;
@@ -31,7 +31,10 @@ export interface IngredientDetailed {
   fromUserIngredients: boolean;
 }
 
-export interface RecipeSuggestionData {
+/**
+ * A single recipe suggestion returned by the AI.
+ */
+export interface SingleRecipe {
   recipeTitle?: string;
   ingredientsYouHave?: string[];
   ingredientsMissing?: string[];
@@ -44,8 +47,17 @@ export interface RecipeSuggestionData {
   estimatedTimeMinutes?: number;
   difficulty?: "easy" | "medium" | "hard";
 }
-  
-  
+
+/**
+ * The suggest-recipe payload now contains an ARRAY of recipes.
+ */
+export interface RecipeSuggestionData {
+  recipes?: SingleRecipe[];
+  // When the AI wants a specific recipe to open (voice: "Open Aglio e Olio")
+  selectedRecipeTitle?: string;
+}
+
+
 // This is the shape of the JSON the AI *must* return
 export interface AIResponse {
   type: InterfaceType;
@@ -53,14 +65,15 @@ export interface AIResponse {
     text?: string; // For instructions/warnings
     seconds?: number; // For timers
     label?: string; // For timers (e.g. "Pasta")
-    id?: string;               // per identificare un timer specifico
+    id?: string; // per identificare un timer specifico
+
     // SHOPPING LIST
-    quantity?: number;         // quantità singola (es. "add 2 eggs")
+    quantity?: number; // quantità singola (es. "add 2 eggs")
     shoppingItems?: Array<{ label: string; quantity?: number | null }>; // lista completa della shopping list
 
     // FRIDGE INVENTORY
     fridgeItems?: FridgeItem[]; // contenuto del frigo
-  } & RecipeSuggestionData; 
+  } & RecipeSuggestionData;
   voiceResponse: string; // What the AI should speak back (optional for now)
 }
 
