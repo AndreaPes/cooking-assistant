@@ -65,14 +65,14 @@ export interface AIResponse {
     text?: string; // For instructions/warnings
     seconds?: number; // For timers
     label?: string; // For timers (e.g. "Pasta")
-    id?: string; // per identificare un timer specifico
+    id?: string; // To identify a specific timer
 
     // SHOPPING LIST
-    quantity?: number; // quantità singola (es. "add 2 eggs")
-    shoppingItems?: Array<{ label: string; quantity?: number | null }>; // lista completa della shopping list
+    quantity?: number; // Single quantity (e.g., "add 2 eggs")
+    shoppingItems?: Array<{ label: string; quantity?: number | null }>; // Full shopping list
 
     // FRIDGE INVENTORY
-    fridgeItems?: FridgeItem[]; // contenuto del frigo
+    fridgeItems?: FridgeItem[]; // Fridge contents
   } & RecipeSuggestionData;
   voiceResponse: string; // What the AI should speak back (optional for now)
 }

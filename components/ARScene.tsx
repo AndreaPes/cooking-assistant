@@ -99,9 +99,7 @@ export default function ARScene() {
       if (!targetName) return false;
 
       const idx = recipes.findIndex(
-        (r) =>
-          r.recipeTitle &&
-          r.recipeTitle.toLowerCase().includes(targetName),
+        (r) => r.recipeTitle && r.recipeTitle.toLowerCase().includes(targetName)
       );
 
       if (idx >= 0) {
@@ -159,13 +157,11 @@ export default function ARScene() {
 
         setAiState({
           type: uiType,
-          data:
-            action.data ??
-            {
-              text: action.text,
-              label: action.label,
-              seconds: action.seconds,
-            },
+          data: action.data ?? {
+            text: action.text,
+            label: action.label,
+            seconds: action.seconds,
+          },
           voiceResponse: action.voiceResponse ?? "",
         });
 
@@ -277,6 +273,7 @@ export default function ARScene() {
     } else if (action.intent === "FRIDGE_INVENTORY") {
       if (action.action === "hide") {
         setAiState(null);
+        setStatus(AssistantStatus.IDLE);
       } else if (action.action === "scan") {
         if (videoRef.current) {
           setStatus(AssistantStatus.PROCESSING);
@@ -294,6 +291,7 @@ export default function ARScene() {
             data: { label: "Camera not available" },
             voiceResponse: "I can't access the camera right now.",
           });
+          setStatus(AssistantStatus.IDLE);
         }
       }
       return;

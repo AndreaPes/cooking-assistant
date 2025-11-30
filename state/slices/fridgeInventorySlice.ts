@@ -35,7 +35,7 @@ export const createFridgeInventorySlice: StateCreator<FridgeInventorySlice> = (s
 
 // Hook Zustand
 export const useFridgeInventoryState = create<FridgeInventorySlice>((set) => ({
-  fridgeItems: [], // <-- deve corrispondere al nome dell'interfaccia
+  fridgeItems: [],
   setFridgeInventory: (items) => set({ fridgeItems: items }),
   clearFridgeInventory: () => set({ fridgeItems: [] }),
 }));

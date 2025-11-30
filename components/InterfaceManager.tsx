@@ -62,7 +62,7 @@ export function InterfaceManager({ activeInterface }: ManagerProps) {
       
       // --- FRIDGE INVENTORY ---
       case "fridge_inventory":
-        return <FridgeInventory items={data.items || []} />;
+        return <FridgeInventory items={data.fridgeItems || []} />;
       
 
       default:
