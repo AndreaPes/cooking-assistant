@@ -38,6 +38,7 @@ export default function ARScene() {
   // Shopping store actions
   const {
     addItem: addShopItem,
+    addItems: addShopItems,
     removeItem: removeShopItem,
     clearAll: clearShopping,
     showAll,

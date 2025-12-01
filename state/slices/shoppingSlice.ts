@@ -6,9 +6,16 @@ export interface ShoppingItem {
   quantity: number | null;
 }
 
+export interface NewItemInput {
+  name: string;
+  quantity?: number;
+  [key: string]: any;
+}
+
 export interface ShoppingSlice {
         items: ShoppingItem[];
         addItem: (label: string, quantity?: number | null) => Promise<void>;
+        addItems: (itemsList: NewItemInput[]) => Promise<void>;
         removeItem: (labelKeyword: string) => Promise<boolean>;
         clearAll: () => Promise<void>;
         showAll: () => Promise<void>;
@@ -65,6 +72,32 @@ export const createShoppingSlice: StateCreator<ShoppingSlice> = (set, get) => ({
       }
     },
 
+    // Batch add multiple items to the backend.
+    addItems: async (itemsList) => {
+      try {
+        // Retrieve the 'addItem' action from the current store state using get().
+        // We cannot use 'this' here because arrow functions do not bind 'this'.
+        const { addItem } = get();
+
+        // Create an array of promises (async operations).
+        // Use .map to transform each item in the list into an addItem operation.
+        const promises = itemsList.map((item) => {
+          
+          // IMPORTANT MAPPING:
+          // We extract "name" from the input list and pass it as "label" to addItem.
+          // We call the function retrieved via get().
+          return addItem(item.name, item.quantity); 
+        });
+
+        // Execute all calls in parallel and wait for them to finish.
+        await Promise.all(promises);
+        
+        console.log("List processing completed.");
+        
+      } catch (err) {
+        console.error("Error processing list", err);
+      }
+    },
 
     // Remove items that match the given label keyword.
     // Matching is case-insensitive and trims whitespace.
