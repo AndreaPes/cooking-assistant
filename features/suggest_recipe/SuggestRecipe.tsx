@@ -2,12 +2,19 @@
 import React, { useState, useEffect } from "react";
 import { Html } from "@react-three/drei";
 import { useCookingState } from "@/state/cookingState";
+import { useShoppingState } from "@/state/shoppingState";
+
 import type {
   RecipeSuggestionData,
   IngredientDetailed,
   StepTimer,
   SingleRecipe,
 } from "@/types/interfaces";
+
+const {
+    addItems: addShopItems,
+  } = useShoppingState();
+
 
 type Props = {
   data: RecipeSuggestionData | null;
