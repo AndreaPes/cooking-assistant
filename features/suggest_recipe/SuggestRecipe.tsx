@@ -8,6 +8,7 @@ import type {
   StepTimer,
   SingleRecipe,
 } from "@/types/interfaces";
+import { useRecipeState } from "@/state/slices/recipeSlice"; // 🆕 import
 
 type Props = {
   data: RecipeSuggestionData | null;
@@ -62,7 +63,21 @@ function getPreviewIngredients(recipe: SingleRecipe) {
 export function SuggestRecipe({ data }: Props) {
   const { addTimer } = useCookingState();
 
+  // 🆕 Access global recipe store
+  const { setSuggestion, setSelectedIndex: setGlobalSelectedIndex } =
+    useRecipeState();
+
+  // Local UI state for which recipe card is open
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  // If no recipes, show hint
   if (!data || !data.recipes || data.recipes.length === 0) {
+    // 🆕 Clear global store when there are no recipes
+    useEffect(() => {
+      setSuggestion(null);
+      setGlobalSelectedIndex(null);
+    }, [setSuggestion, setGlobalSelectedIndex]);
+
     return (
       <group position={[1.5, 0, -2]}>
         <Html transform>
@@ -82,13 +97,18 @@ export function SuggestRecipe({ data }: Props) {
   }
 
   const recipes: SingleRecipe[] = data.recipes;
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  // 🆕 Whenever new data arrives, push it into the global store
+  useEffect(() => {
+    setSuggestion(data);
+  }, [data, setSuggestion]);
 
   // If the AI specifies a recipe to open (selectedRecipeTitle),
   // auto-select it when new data arrives.
   useEffect(() => {
     if (!data || !data.recipes || data.recipes.length === 0) {
       setSelectedIndex(null);
+      setGlobalSelectedIndex(null); // 🆕 sync global
       return;
     }
 
@@ -101,13 +121,15 @@ export function SuggestRecipe({ data }: Props) {
       );
       if (idx >= 0) {
         setSelectedIndex(idx);
+        setGlobalSelectedIndex(idx); // 🆕 sync global
         return;
       }
     }
 
     // If no specific recipe requested, show overview list
     setSelectedIndex(null);
-  }, [data]);
+    setGlobalSelectedIndex(null); // 🆕 sync global
+  }, [data, setGlobalSelectedIndex]);
 
   // === SCREEN 1: OVERVIEW WITH PREVIEW CARDS ===
   if (selectedIndex === null) {
@@ -126,7 +148,10 @@ export function SuggestRecipe({ data }: Props) {
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => setSelectedIndex(idx)}
+                    onClick={() => {
+                      setSelectedIndex(idx);
+                      setGlobalSelectedIndex(idx); // 🆕 sync global
+                    }}
                     className="w-full text-left bg-white/5 hover:bg-white/10 border border-white/15 rounded-2xl px-3 py-2 space-y-1 cursor-pointer"
                   >
                     <div className="flex justify-between items-center gap-2">
@@ -195,7 +220,10 @@ export function SuggestRecipe({ data }: Props) {
           {/* BACK BUTTON */}
           <button
             type="button"
-            onClick={() => setSelectedIndex(null)}
+            onClick={() => {
+              setSelectedIndex(null);
+              setGlobalSelectedIndex(null); // 🆕 sync global
+            }}
             className="text-[10px] mb-1 px-2 py-1 rounded-full border border-white/30 text-white/80 hover:bg-white/10"
           >
             ← Back to recipe list
