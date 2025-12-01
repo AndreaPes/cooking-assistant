@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Html } from "@react-three/drei";
 import { useCookingState } from "@/state/cookingState";
-import { useShoppingState } from "@/state/shoppingState";
+
 
 import type {
   RecipeSuggestionData,
@@ -11,10 +11,6 @@ import type {
   SingleRecipe,
 } from "@/types/interfaces";
 import { useRecipeState } from "@/state/slices/recipeSlice"; // 🆕 import
-
-const {
-    addItems: addShopItems,
-  } = useShoppingState();
 
 
 type Props = {
