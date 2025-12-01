@@ -29,11 +29,13 @@ export default function ARScene() {
     useCookingState();
   const { status, setStatus } = useAssistantState();
 
+  // ⬇️ Fridge inventory: now reading fridgeItems as well
+  const { fridgeItems, setFridgeInventory } = useFridgeInventoryState();
+
   // Local State
   const [aiState, setAiState] = useState<AIResponse | null>(null);
   const { isListening, transcript, startListening } = useVoiceInput();
   const [isCameraMode, setIsCameraMode] = useState(false);
-  const { setFridgeInventory } = useFridgeInventoryState();
 
   // Shopping store actions
   const {
@@ -146,6 +148,8 @@ export default function ARScene() {
         body: JSON.stringify({
           userSpeech: transcript,
           activeTimers: activeTimers,
+          // ⬇️ NEW: send current fridge items to the backend
+          fridgeItems: fridgeItems ?? [],
         }),
       });
 
@@ -203,8 +207,8 @@ export default function ARScene() {
         clearAllTimers();
         setAiState({
           type: "success",
-          data: { label: "Timers Cleared" },
-          voiceResponse: "All stopped.",
+            data: { label: "Timers Cleared" },
+            voiceResponse: "All stopped.",
         });
         setTimeout(() => setAiState(null), 2000);
       } else {
