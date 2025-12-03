@@ -30,16 +30,19 @@ export default function ARScene() {
     useCookingState();
   const { status, setStatus } = useAssistantState();
 
-  // ⬇️ Fridge inventory: now reading fridgeItems as well
+  // Fridge inventory
   const { fridgeItems, setFridgeInventory } = useFridgeInventoryState();
 
-  // Recipe store (for local nav)
+  // Recipe store 
   const { suggestion, selectedIndex } = useRecipeState();
 
   // Local State
   const [aiState, setAiState] = useState<AIResponse | null>(null);
   const { isListening, transcript, startListening } = useVoiceInput();
   const [isCameraMode, setIsCameraMode] = useState(false);
+
+  // Toast for "Added X missing ingredients"
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Shopping store actions
   const {
@@ -68,7 +71,7 @@ export default function ARScene() {
         processVoice();
       }
     }
-  }, [isListening, transcript, activeTimers, aiState]); // include aiState so nav sees latest
+  }, [isListening, transcript, activeTimers, aiState]);
 
   // --- LOCAL NAVIGATION FOR SUGGEST_RECIPE (open/go back) ---
   const tryLocalRecipeNavigation = (spoken: string): boolean => {
@@ -152,7 +155,6 @@ export default function ARScene() {
         body: JSON.stringify({
           userSpeech: transcript,
           activeTimers: activeTimers,
-          // ⬇️ NEW: send current fridge items to the backend
           fridgeItems: fridgeItems ?? [],
         }),
       });
@@ -211,8 +213,8 @@ export default function ARScene() {
         clearAllTimers();
         setAiState({
           type: "success",
-            data: { label: "Timers Cleared" },
-            voiceResponse: "All stopped.",
+          data: { label: "Timers Cleared" },
+          voiceResponse: "All stopped.",
         });
         setTimeout(() => setAiState(null), 2000);
       } else {
@@ -226,19 +228,27 @@ export default function ARScene() {
       });
       setTimeout(() => setAiState(null), 6000);
     } else if (action.intent === "SHOPPING_LIST") {
-      // Actions: add, remove, clear, show
+      // Actions: add, remove, clear, show, addMissingIngredients
       if (action.action === "add") {
         console.log("Adding shopping item:", action);
         const itemLabel = action.label ?? action.item ?? null;
         if (itemLabel) {
+          const prevState = aiState; // snapshot of current UI (likely recipe)
+
           addShopItem(itemLabel, action.quantity ?? 1);
           const qtyText = action.quantity ? ` × ${action.quantity}` : "";
-          setAiState({
-            type: "success",
-            data: { label: `Added ${itemLabel}${qtyText}` },
-            voiceResponse: `Added ${itemLabel}`,
-          });
-          setTimeout(() => setAiState(null), 6000);
+
+          // hide recipe, show toast
+          setAiState(null);
+          setToastMessage(`Added ${itemLabel}${qtyText}`);
+
+          setTimeout(() => {
+            setToastMessage(null);
+            // restore recipe if that was the previous state
+            if (prevState && prevState.type === "suggest_recipe") {
+              setAiState(prevState);
+            }
+          }, 3000);
         }
       } else if (action.action === "remove") {
         const removeLabel = action.label ?? action.item ?? "";
@@ -279,23 +289,38 @@ export default function ARScene() {
         });
         setTimeout(() => setAiState(null), 6000);
       } else if (action.action === "addMissingIngredients") {
-        // NEW: add multiple missing ingredients to shopping list
-        const itemsToAdd: Array<{ name: string; quantity?: number}> =
-          suggestion?.recipes?.[selectedIndex || 0].ingredientsDetailed
+        // Add all missing ingredients of the current recipe
+        const currentRecipe =
+          suggestion?.recipes?.[
+            selectedIndex != null ? selectedIndex : 0
+          ];
+
+        const itemsToAdd:
+          | Array<{ name: string; quantity?: number }>
+          | [] =
+          currentRecipe?.ingredientsDetailed
             ?.filter((ing) => !ing.fromUserIngredients)
             .map((ing) => ({
               name: ing.name,
               quantity: ing.quantity,
             })) || [];
+
+        if (itemsToAdd.length > 0) {
+          const prevState = aiState; // snapshot current UI (recipe)
+
           await addShopItems(itemsToAdd);
-          setAiState({
-            type: "success",
-            data: {
-              label: `Added ${itemsToAdd.length} missing ingredients`,
-            },
-            voiceResponse: `Added ${itemsToAdd.length} missing ingredients to your shopping list`,
-          });
-          setTimeout(() => setAiState(null), 6000);
+
+          // hide recipe, show toast
+          setAiState(null);
+          setToastMessage(`Added ${itemsToAdd.length} missing ingredients`);
+
+          setTimeout(() => {
+            setToastMessage(null);
+            if (prevState && prevState.type === "suggest_recipe") {
+              setAiState(prevState);
+            }
+          }, 3000);
+        }
       }
     } else if (action.intent === "FRIDGE_INVENTORY") {
       if (action.action === "hide") {
@@ -339,8 +364,16 @@ export default function ARScene() {
           onClick={handleMicClick}
           style={{ backgroundColor: getStatusColor(status) }}
           className={`px-6 py-3 rounded-full font-bold shadow-2xl transition-all scale-100 active:scale-95
-                    ${status === AssistantStatus.PROCESSING ? "animate-pulse" : ""}
-                    ${status === AssistantStatus.IDLE ? "text-black" : "text-white"} 
+                    ${
+                      status === AssistantStatus.PROCESSING
+                        ? "animate-pulse"
+                        : ""
+                    }
+                    ${
+                      status === AssistantStatus.IDLE
+                        ? "text-black"
+                        : "text-white"
+                    } 
                     `}
         >
           {status === AssistantStatus.IDLE && "🎤 Speak"}
@@ -366,7 +399,10 @@ export default function ARScene() {
         <XR store={store}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
-          <InterfaceManager activeInterface={aiState} />
+          <InterfaceManager
+            activeInterface={aiState}
+            toastMessage={toastMessage}
+          />
         </XR>
       </Canvas>
     </div>

@@ -10,9 +10,11 @@ import { SuggestRecipe } from "@/features/suggest_recipe/SuggestRecipe";
 
 interface ManagerProps {
   activeInterface: AIResponse | null;
+  // 🆕 optional toast message (e.g. "Added 5 missing ingredients")
+  toastMessage?: string | null;
 }
 
-export function InterfaceManager({ activeInterface }: ManagerProps) {
+export function InterfaceManager({ activeInterface, toastMessage }: ManagerProps) {
   // Get active timers from the Timer Slice
   const { activeTimers } = useCookingState();
 
@@ -47,7 +49,7 @@ export function InterfaceManager({ activeInterface }: ManagerProps) {
         );
 
       case "suggest_recipe":
-        return <SuggestRecipe data={data} />;        
+        return <SuggestRecipe data={data} />;
 
       // Timers are handled in the stack below, so we return null here
       case "timer":
@@ -58,12 +60,12 @@ export function InterfaceManager({ activeInterface }: ManagerProps) {
           <ShoppingList
             label={data.label || "Shopping List"}
             customPosition={[5, 0, -2]}
-          />);
-      
+          />
+        );
+
       // --- FRIDGE INVENTORY ---
       case "fridge_inventory":
         return <FridgeInventory items={data.fridgeItems || []} />;
-      
 
       default:
         console.warn(`Unknown interface type: ${type}`);
@@ -90,8 +92,16 @@ export function InterfaceManager({ activeInterface }: ManagerProps) {
         );
       })}
 
-      {/* 2. CENTER UI: DYNAMIC CONTENT */}
+      {/* 2. CENTER UI: DYNAMIC CONTENT (recipes, fridge, shopping list, etc.) */}
       {renderDynamicInterface()}
+
+      {/* 3. TOAST OVERLAY: e.g. "Added 5 missing ingredients" */}
+      {toastMessage && (
+        <NotificationBadge
+          label={toastMessage}
+          variant="success"
+        />
+      )}
     </>
   );
 }
