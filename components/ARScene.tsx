@@ -15,6 +15,7 @@ import {
   getStatusColor,
 } from "@/state/assistantState";
 import { useFridgeInventoryState } from "@/state/slices/fridgeInventorySlice";
+import { useRecipeState } from "@/state/slices/recipeSlice";
 import { AIResponse, RecipeSuggestionData } from "@/types/interfaces";
 import { useShoppingState } from "@/state/shoppingState";
 import { detectIngredientsFromImage } from "@/features/fridge-inventory/detectIngredients";
@@ -31,6 +32,9 @@ export default function ARScene() {
 
   // ⬇️ Fridge inventory: now reading fridgeItems as well
   const { fridgeItems, setFridgeInventory } = useFridgeInventoryState();
+
+  // Recipe store (for local nav)
+  const { suggestion, selectedIndex } = useRecipeState();
 
   // Local State
   const [aiState, setAiState] = useState<AIResponse | null>(null);
@@ -274,6 +278,24 @@ export default function ARScene() {
           voiceResponse: "Showing shopping list",
         });
         setTimeout(() => setAiState(null), 6000);
+      } else if (action.action === "addMissingIngredients") {
+        // NEW: add multiple missing ingredients to shopping list
+        const itemsToAdd: Array<{ name: string; quantity?: number}> =
+          suggestion?.recipes?.[selectedIndex || 0].ingredientsDetailed
+            ?.filter((ing) => !ing.fromUserIngredients)
+            .map((ing) => ({
+              name: ing.name,
+              quantity: ing.quantity,
+            })) || [];
+          await addShopItems(itemsToAdd);
+          setAiState({
+            type: "success",
+            data: {
+              label: `Added ${itemsToAdd.length} missing ingredients`,
+            },
+            voiceResponse: `Added ${itemsToAdd.length} missing ingredients to your shopping list`,
+          });
+          setTimeout(() => setAiState(null), 6000);
       }
     } else if (action.intent === "FRIDGE_INVENTORY") {
       if (action.action === "hide") {
