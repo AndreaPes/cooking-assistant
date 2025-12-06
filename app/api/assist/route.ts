@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { GoogleGenAI } from "@google/genai";
 
-// Import rules from the Features
 import { TIMER_RULES, TIMER_JSON_FORMAT } from "@/features/timer/timer.prompt";
 import { CORE_JSON_FORMAT } from "@/features/core/core.prompt";
 import {
@@ -14,12 +12,17 @@ import {
   FRIDGE_INVENTORY_RULES,
   FRIDGE_INVENTORY_JSON_FORMAT,
 } from "@/features/fridge-inventory/FridgeInventory.prompt";
+
 import {
   SUGGEST_RECIPE_RULES,
   SUGGEST_RECIPE_JSON_FORMAT,
 } from "@/features/suggest_recipe/suggest_recipe.prompt";
 
-// const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import {
+  STEP_GUIDE_RULES,
+  STEP_GUIDE_JSON_FORMAT,
+} from "@/features/step-guide/stepGuide.prompt";
+
 const openai = new OpenAI({
   apiKey: process.env.GOOGLE_API_KEY,
   baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -27,18 +30,22 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    // ⬇️ Now also accepting fridgeItems from the frontend
-    const { userSpeech, activeTimers, fridgeItems = [] } = await req.json();
+    const {
+      userSpeech,
+      activeTimers,
+      fridgeItems = [],
+      currentRecipes = [],
+      activeRecipe = null,
+      selectedRecipe = null,
+    } = await req.json();
 
-    // Helper to format list for AI
+    // Helper to format list for AI (Timers)
     const timerListString =
       activeTimers && activeTimers.length > 0
         ? activeTimers.map((t: any) => `"${t.label}"`).join(", ")
         : "NONE";
 
-    const timerCount = activeTimers ? activeTimers.length : 0;
-
-    // ⬇️ Format fridge items for the prompt
+    // Helper to format list for AI (Fridge)
     const fridgeListString =
       fridgeItems && fridgeItems.length > 0
         ? fridgeItems
@@ -50,28 +57,47 @@ export async function POST(req: Request) {
             .join(", ")
         : "NONE";
 
+    // Helper to format list for AI (Recipes)
+    const recipesListString =
+      currentRecipes && currentRecipes.length > 0
+        ? currentRecipes
+            .map((r: any, idx: number) => `#${idx + 1}: "${r.recipeTitle}"`)
+            .join(", ")
+        : "NONE";
+
+    const previewContext = selectedRecipe
+      ? `CURRENTLY PREVIEWING (NOT COOKING YET): "${selectedRecipe.recipeTitle}" (Ingredients: ${selectedRecipe.ingredientsDetailed?.map((i: any) => i.name).join(", ")})`
+      : "NO RECIPE SELECTED (User is looking at the list)";
+
+    // Helper for Active Recipe and Cooking Phase
+    const activeRecipeContext = activeRecipe
+      ? `CURRENTLY COOKING: "${activeRecipe.title}" (Step ${activeRecipe.currentStepIndex + 1} of ${activeRecipe.steps?.length || "?"})`
+      : "CURRENTLY COOKING: NONE";
+
     console.log(
-      `🎤 User: "${userSpeech}" | Active(${timerCount}): [${timerListString}] | Fridge: [${fridgeListString}]`,
+      `🎤 User: "${userSpeech}" | Timers: [${timerListString}] | Recipes: [${recipesListString}]`,
     );
 
     // Build the prompt dynamically
     const systemPrompt = `
       You are a Logic Controller for an AR Cooking App.
       
-      CURRENT ACTIVE TIMERS: [${timerListString}]
-      CURRENT FRIDGE ITEMS: [${fridgeListString}]
+      CURRENT APP STATE:
+      - ACTIVE TIMERS: [${timerListString}]
+      - FRIDGE ITEMS: [${fridgeListString}]
+      - VISIBLE RECIPES (SUGGESTIONS): [${recipesListString}]
+      - ${previewContext}
+      - ${activeRecipeContext}
       
       Classify user intent into JSON.
       
       === FEATURE RULES ===
       
       ${TIMER_RULES}
-      
       ${SHOPPING_LIST_RULES}
-
       ${FRIDGE_INVENTORY_RULES}
-
-      ${SUGGEST_RECIPE_RULES}
+      ${SUGGEST_RECIPE_RULES}      
+      ${STEP_GUIDE_RULES}
 
       Additional connection rule:
       - When the user asks what they can cook "with what I have in the fridge"
@@ -82,8 +108,6 @@ export async function POST(req: Request) {
           are derived from CURRENT FRIDGE ITEMS.
         - Any extra ingredients not in CURRENT FRIDGE ITEMS must be marked as
           ingredientsMissing and have fromUserIngredients = false.
-      
-      (Add other feature rules here...)
       
       =====================
       
@@ -99,6 +123,7 @@ export async function POST(req: Request) {
       ${CORE_JSON_FORMAT}
       ${FRIDGE_INVENTORY_JSON_FORMAT}
       ${SUGGEST_RECIPE_JSON_FORMAT}
+      ${STEP_GUIDE_JSON_FORMAT}
       
       Return ONLY JSON.
     `;
@@ -115,7 +140,6 @@ export async function POST(req: Request) {
 
     const content = JSON.parse(response.choices[0].message.content || "{}");
     console.log("AI Output:", content);
-    console.log("AI Output (pretty):", JSON.stringify(content, null, 2));
 
     return NextResponse.json(content);
   } catch (error) {

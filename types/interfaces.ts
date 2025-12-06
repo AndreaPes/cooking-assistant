@@ -9,79 +9,70 @@ export type InterfaceType =
   | "idle"
   | "error"
   | "fridge_inventory"
-  | "suggest_recipe";
+  | "suggest_recipe"
+  | "step_guide";
 
 export interface StepTimer {
-  /** 1-based index of the step in the steps[] array */
   stepIndex: number;
-  /** Duration in minutes for this step (boiling, baking, resting, etc.) */
   minutes: number;
-  /** Human label for the timer, e.g. "Boil pasta" or "Bake cake" */
   label: string;
 }
 
 export interface IngredientDetailed {
-  /** Ingredient name, e.g. "spaghetti", "olive oil" */
   name: string;
-  /** Numeric quantity, e.g. 200 */
   quantity: number;
-  /** Unit, e.g. "g", "ml", "tbsp", "tsp", "piece", "clove" */
   unit: string;
-  /** true if the ingredient comes from the user's list, false if it is extra */
   fromUserIngredients: boolean;
 }
 
 /**
- * A single recipe suggestion returned by the AI.
+ * Definizione di uno Step Atomico (Generato dall'AI)
  */
+export interface AtomicStep {
+  id: string;
+  actionVerb: string;
+  targetObject: string;
+  details: string;
+  icon?: string;
+  timerSeconds?: number;
+  warning?: string | null;
+}
+
 export interface SingleRecipe {
   recipeTitle?: string;
   ingredientsYouHave?: string[];
   ingredientsMissing?: string[];
-
   ingredientsDetailed?: IngredientDetailed[];
 
-  steps?: string[];
-  stepTimers?: StepTimer[];
+  steps?: AtomicStep[];
 
   estimatedTimeMinutes?: number;
   difficulty?: "easy" | "medium" | "hard";
 }
 
-/**
- * The suggest-recipe payload now contains an ARRAY of recipes.
- */
 export interface RecipeSuggestionData {
   recipes?: SingleRecipe[];
-  // When the AI wants a specific recipe to open (voice: "Open Aglio e Olio")
   selectedRecipeTitle?: string;
 }
 
-
-// This is the shape of the JSON the AI *must* return
 export interface AIResponse {
   type: InterfaceType;
   data: {
-    text?: string; // For instructions/warnings
-    seconds?: number; // For timers
-    label?: string; // For timers (e.g. "Pasta")
-    id?: string; // To identify a specific timer
+    text?: string;
+    seconds?: number;
+    label?: string;
+    id?: string;
 
     // SHOPPING LIST
-    quantity?: number; // Single quantity (e.g., "add 2 eggs")
-    shoppingItems?: Array<{ label: string; quantity?: number | null }>; // Full shopping list
+    quantity?: number;
+    shoppingItems?: Array<{ label: string; quantity?: number | null }>;
 
-    // FRIDGE INVENTORY
-    fridgeItems?: FridgeItem[]; // Fridge contents
+    // FRIDGE
+    fridgeItems?: FridgeItem[];
+
+    recipe?: SingleRecipe;
+
+    direction?: "next" | "prev" | "jump";
+    target?: number | "first" | "last";
   } & RecipeSuggestionData;
-  voiceResponse: string; // What the AI should speak back (optional for now)
 }
-
-/* Usage notes:
- - In code, narrow by `response.type` (switch or if) before accessing type-specific fields.
- - Example:
-     if (resp.type === 'shopping_list') {
-       // TS knows resp.data may have `items`, `id`, `label` here
-     }
- - This avoids optional casts like `data.seconds!` and makes the shapes explicit.
-*/

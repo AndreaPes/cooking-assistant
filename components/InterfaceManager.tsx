@@ -2,7 +2,9 @@ import { AIResponse } from "@/types/interfaces";
 import { useCookingState } from "@/state/cookingState";
 
 // --- FEATURE COMPONENTS ---
+// Assicurati che i percorsi siano corretti in base a dove hai salvato i file
 import { Timer } from "@/features/timer/Timer";
+import { StepGuide } from "@/features/step-guide/StepGuide";
 import { ShoppingList } from "@/features/shopping_list/shopping_list";
 import { NotificationBadge } from "@/features/notifications/NotificationBadge";
 import { FridgeInventory } from "@/features/fridge-inventory/FridgeInventory";
@@ -10,17 +12,24 @@ import { SuggestRecipe } from "@/features/suggest_recipe/SuggestRecipe";
 
 interface ManagerProps {
   activeInterface: AIResponse | null;
-  // 🆕 optional toast message (e.g. "Added 5 missing ingredients")
   toastMessage?: string | null;
 }
 
-export function InterfaceManager({ activeInterface, toastMessage }: ManagerProps) {
-  // Get active timers from the Timer Slice
-  const { activeTimers } = useCookingState();
+export function InterfaceManager({
+  activeInterface,
+  toastMessage,
+}: ManagerProps) {
+  // 1. Recuperiamo TUTTO lo stato necessario (Timer + Ricetta Attiva)
+  const { activeTimers, activeRecipe, currentStepIndex } = useCookingState();
+
+  const isMenuOpen =
+    activeInterface?.type === "suggest_recipe" ||
+    activeInterface?.type === "shopping_list" ||
+    activeInterface?.type === "fridge_inventory";
 
   /**
    * THE FACTORY LOGIC
-   * Determines what to render based on the AI response type.
+   * Renderizza le interfacce temporanee/modali basate sulla risposta AI
    */
   const renderDynamicInterface = () => {
     if (!activeInterface) return null;
@@ -28,7 +37,7 @@ export function InterfaceManager({ activeInterface, toastMessage }: ManagerProps
     const { type, data } = activeInterface;
 
     switch (type) {
-      // --- NOTIFICATIONS ---
+      // --- NOTIFICATIONS & INSTRUCTIONS ---
       case "success":
         return (
           <NotificationBadge
@@ -36,50 +45,48 @@ export function InterfaceManager({ activeInterface, toastMessage }: ManagerProps
             variant="success"
           />
         );
-
       case "error":
         return (
           <NotificationBadge label={data.label || "Error"} variant="error" />
         );
-
-      // --- GENERIC ANSWERS ---
       case "instruction":
         return (
           <NotificationBadge label={data.text || "Info"} variant="neutral" />
         );
 
+      // --- FULL SCREEN MENUS ---
       case "suggest_recipe":
         return <SuggestRecipe data={data} />;
-
-      // Timers are handled in the stack below, so we return null here
-      case "timer":
-        return null;
 
       case "shopping_list":
         return (
           <ShoppingList
             label={data.label || "Shopping List"}
-            customPosition={[5, 0, -2]}
+            customPosition={[0, 0, -1.5]}
           />
         );
 
-      // --- FRIDGE INVENTORY ---
       case "fridge_inventory":
         return <FridgeInventory items={data.fridgeItems || []} />;
 
+      case "timer":
+        return null;
+
+      // GENERIC / UNKNOWN
       default:
-        console.warn(`Unknown interface type: ${type}`);
         return null;
     }
   };
 
   return (
     <>
-      {/* 1. SIDE UI: ACTIVE TIMERS STACK */}
+      {/* 1. LAYER PERSISTENTE: ACTIVE TIMERS (Sempre visibili a destra) */}
       {activeTimers.map((timer, index) => {
         // STACKING LOGIC:
-        const stackY = 0.5 - index * 1.2;
-        const position: [number, number, number] = [5, stackY, -2];
+        // Ho ridotto il gap da 1.2 a 0.45. In AR, 1 unità = 1 metro.
+        // 1.2m era troppo dispersivo, 45cm è perfetto per una lista verticale.
+        const stackY = 0.5 - index * 0.45;
+        const position: [number, number, number] = [1.5, stackY, -2]; // Spostato a X=1.5 (Destra)
 
         return (
           <Timer
@@ -92,15 +99,24 @@ export function InterfaceManager({ activeInterface, toastMessage }: ManagerProps
         );
       })}
 
-      {/* 2. CENTER UI: DYNAMIC CONTENT (recipes, fridge, shopping list, etc.) */}
+      {/* 2. LAYER CONTESTUALE: STEP GUIDE (Visibile solo se cuciniamo e non ci sono menu sopra) */}
+      {!isMenuOpen &&
+        activeRecipe &&
+        activeRecipe.steps &&
+        currentStepIndex >= 0 && (
+          <StepGuide
+            step={activeRecipe.steps[currentStepIndex]}
+            stepIndex={currentStepIndex}
+            totalSteps={activeRecipe.steps.length}
+          />
+        )}
+
+      {/* 3. LAYER MODALE: DYNAMIC CONTENT (Sovrascrive il centro se attivo) */}
       {renderDynamicInterface()}
 
-      {/* 3. TOAST OVERLAY: e.g. "Added 5 missing ingredients" */}
+      {/* 4. LAYER OVERLAY: TOAST MESSAGES (Sempre in cima) */}
       {toastMessage && (
-        <NotificationBadge
-          label={toastMessage}
-          variant="success"
-        />
+        <NotificationBadge label={toastMessage} variant="success" />
       )}
     </>
   );

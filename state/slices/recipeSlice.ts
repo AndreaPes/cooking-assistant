@@ -1,26 +1,19 @@
-
-import { create } from "zustand";
+import { StateCreator } from "zustand";
 import type { RecipeSuggestionData } from "@/types/interfaces";
 
-type RecipeState = {
-  // Full JSON coming from the AI (recipes, selectedRecipeTitle, etc.)
+export interface RecipeSlice {
   suggestion: RecipeSuggestionData | null;
+  selectedSuggestionIndex: number | null;
 
-  // Index of the currently selected recipe in suggestion.recipes
-  selectedIndex: number | null;
-
-  // Set / reset the full suggestion payload
   setSuggestion: (data: RecipeSuggestionData | null) => void;
+  setSelectedSuggestionIndex: (index: number | null) => void;
+}
 
-  // Set / reset the selected recipe index
-  setSelectedIndex: (index: number | null) => void;
-};
-
-export const useRecipeState = create<RecipeState>((set) => ({
+export const createRecipeSlice: StateCreator<RecipeSlice> = (set) => ({
   suggestion: null,
-  selectedIndex: null,
+  selectedSuggestionIndex: null,
 
   setSuggestion: (data) => set({ suggestion: data }),
-
-  setSelectedIndex: (index) => set({ selectedIndex: index }),
-}));
+  setSelectedSuggestionIndex: (index) =>
+    set({ selectedSuggestionIndex: index }),
+});

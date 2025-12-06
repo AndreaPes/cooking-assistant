@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { InterfaceManager } from "@/components/InterfaceManager";
 import { WebcamFeed } from "@/components/WebcamFeed";
+
 import { useCookingState } from "@/state/cookingState";
 import {
   useAssistantState,
@@ -15,8 +16,7 @@ import {
   getStatusColor,
 } from "@/state/assistantState";
 import { useFridgeInventoryState } from "@/state/slices/fridgeInventorySlice";
-import { useRecipeState } from "@/state/slices/recipeSlice";
-import { AIResponse, RecipeSuggestionData } from "@/types/interfaces";
+import { AIResponse, AtomicStep } from "@/types/interfaces";
 import { useShoppingState } from "@/state/shoppingState";
 import { detectIngredientsFromImage } from "@/features/fridge-inventory/detectIngredients";
 
@@ -25,328 +25,221 @@ const store = createXRStore({ domOverlay: true });
 export default function ARScene() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Global State
-  const { addTimer, removeTimer, clearAllTimers, activeTimers } =
-    useCookingState();
-  const { status, setStatus } = useAssistantState();
-
-  // Fridge inventory
-  const { fridgeItems, setFridgeInventory } = useFridgeInventoryState();
-
-  // Recipe store 
-  const { suggestion, selectedIndex } = useRecipeState();
-
-  // Local State
-  const [aiState, setAiState] = useState<AIResponse | null>(null);
-  const { isListening, transcript, startListening } = useVoiceInput();
-  const [isCameraMode, setIsCameraMode] = useState(false);
-
-  // Toast for "Added X missing ingredients"
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Shopping store actions
+  // --- GLOBAL STATE ---
   const {
-    addItem: addShopItem,
-    addItems: addShopItems,
-    removeItem: removeShopItem,
-    clearAll: clearShopping,
-    showAll,
-  } = useShoppingState();
+    loadRecipe,
+    nextStep,
+    prevStep,
+    jumpToStep,
+    setSuggestion,
+    addTimer,
+    removeTimer,
+    clearAllTimers,
+  } = useCookingState();
 
+  const { status, setStatus } = useAssistantState();
+  const { setFridgeInventory } = useFridgeInventoryState();
+  const { addItem: addShopItem, showAll } = useShoppingState();
+
+  // --- LOCAL STATE ---
+  const [aiState, setAiState] = useState<AIResponse | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { isListening, transcript, startListening } = useVoiceInput();
+  const [isCameraMode] = useState(false);
   const lastProcessedText = useRef("");
 
-  // --- EFFECT: SYNC VOICE STATUS ---
-  useEffect(() => {
-    if (isListening) {
-      setStatus(AssistantStatus.LISTENING);
+  // --- HELPER: TIMER SPAWNER ---
+  // secondo me questo non dovrebbe essere qui
+  const checkAndSpawnTimer = (step: AtomicStep) => {
+    if (step && step.timerSeconds && step.timerSeconds > 0) {
+      const currentTimers = useCookingState.getState().activeTimers;
+
+      const alreadyExists = currentTimers.some(
+        (t) =>
+          t.label.toLowerCase().includes(step.actionVerb.toLowerCase()) ||
+          t.label.toLowerCase() === step.targetObject.toLowerCase(),
+      );
+
+      if (!alreadyExists) {
+        addTimer(step.timerSeconds, step.actionVerb);
+        setToastMessage(`Timer started: ${step.actionVerb}`);
+        setTimeout(() => setToastMessage(null), 3000);
+      }
     }
+  };
+
+  // --- VOICE & API ---
+  useEffect(() => {
+    if (isListening) setStatus(AssistantStatus.LISTENING);
   }, [isListening, setStatus]);
 
-  // --- EFFECT: AUTO-SEND ON SILENCE ---
   useEffect(() => {
     if (!isListening && transcript) {
       if (transcript !== lastProcessedText.current) {
-        console.log("✅ Silence detected. Processing transcript...");
         lastProcessedText.current = transcript;
-        processVoice();
+        processVoice().catch(console.error);
       }
     }
-  }, [isListening, transcript, activeTimers, aiState]);
+  }, [isListening, transcript]);
 
-  // --- LOCAL NAVIGATION FOR SUGGEST_RECIPE (open/go back) ---
-  const tryLocalRecipeNavigation = (spoken: string): boolean => {
-    if (!aiState || aiState.type !== "suggest_recipe") return false;
-
-    const data = (aiState.data || {}) as RecipeSuggestionData;
-    const recipes = data.recipes || [];
-    if (recipes.length === 0) return false;
-
-    const lower = spoken.toLowerCase().trim();
-
-    // 1) "go back" / "back to recipes"
-    if (
-      lower === "go back" ||
-      lower === "go back to recipes" ||
-      lower.includes("back to recipes")
-    ) {
-      setAiState({
-        ...aiState,
-        type: "suggest_recipe",
-        data: {
-          ...data,
-          selectedRecipeTitle: "", // falsy => list view in SuggestRecipe
-        },
-        voiceResponse: "",
-      });
-      setStatus(AssistantStatus.IDLE);
-      return true;
-    }
-
-    // 2) "open pasta with tomato sauce", "start cacio e pepe", "show aglio e olio"
-    const openMatch = lower.match(/^(open|start|show)\s+(.+)/);
-    if (openMatch) {
-      const targetName = openMatch[2].trim();
-      if (!targetName) return false;
-
-      const idx = recipes.findIndex(
-        (r) => r.recipeTitle && r.recipeTitle.toLowerCase().includes(targetName)
-      );
-
-      if (idx >= 0) {
-        const selectedTitle = recipes[idx].recipeTitle || targetName;
-        setAiState({
-          ...aiState,
-          type: "suggest_recipe",
-          data: {
-            ...data,
-            selectedRecipeTitle: selectedTitle,
-          },
-          voiceResponse: "",
-        });
-        setStatus(AssistantStatus.IDLE);
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  // --- PROCESS VOICE ---
   const processVoice = async () => {
     if (!transcript) return;
-
-    const spoken = transcript.trim();
-    const lower = spoken.toLowerCase();
-
-    // 1) Try local navigation first (does NOT call backend)
-    const handledLocally = tryLocalRecipeNavigation(spoken);
-    if (handledLocally) {
-      console.log("🎛 Handled locally (navigation):", lower);
-      return;
-    }
-
-    // 2) Otherwise call backend as before
     setStatus(AssistantStatus.PROCESSING);
 
     try {
+      const freshState = useCookingState.getState();
+      const freshFridge = useFridgeInventoryState.getState().fridgeItems;
+
+      let previewRecipe = null;
+      if (
+        freshState.suggestion?.recipes &&
+        freshState.selectedSuggestionIndex !== null &&
+        freshState.selectedSuggestionIndex >= 0
+      ) {
+        previewRecipe =
+          freshState.suggestion.recipes[freshState.selectedSuggestionIndex];
+      }
+
+      const payload = {
+        userSpeech: transcript,
+        activeTimers: freshState.activeTimers,
+        fridgeItems: freshFridge ?? [],
+        currentRecipes: freshState.suggestion?.recipes || [],
+        selectedRecipe: previewRecipe,
+        activeRecipe: freshState.activeRecipe
+          ? {
+              title: freshState.activeRecipe.recipeTitle,
+              steps: freshState.activeRecipe.steps,
+              currentStepIndex: freshState.currentStepIndex,
+            }
+          : null,
+      };
+
       const res = await fetch("/api/assist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userSpeech: transcript,
-          activeTimers: activeTimers,
-          fridgeItems: fridgeItems ?? [],
-        }),
+        body: JSON.stringify(payload),
       });
 
       const action = await res.json();
-      console.log("🤖 AI Intent:", action);
-
-      // handle interface-based responses (e.g. suggest_recipe)
-      if (action.interface || action.type) {
-        const uiType = (action.type ?? action.interface) as AIResponse["type"];
-
-        setAiState({
-          type: uiType,
-          data: action.data ?? {
-            text: action.text,
-            label: action.label,
-            seconds: action.seconds,
-          },
-          voiceResponse: action.voiceResponse ?? "",
-        });
-
-        setStatus(AssistantStatus.IDLE);
-        return;
-      }
-
-      // Legacy intent-based logic (timers, queries, etc.)
-      await handleIntent(action);
-      setStatus(AssistantStatus.IDLE);
+      console.log("🤖 AI Response:", action);
+      await handleAIResponse(action);
     } catch (error) {
       console.error("API Error", error);
+    } finally {
       setStatus(AssistantStatus.IDLE);
     }
   };
 
-  // --- INTENT ROUTER ---
-  const handleIntent = async (action: any) => {
-    if (action.intent === "TIMER") {
-      if (action.action === "stop") {
-        const didRemove = await removeTimer(action.label || "");
-        if (didRemove) {
-          setAiState({
-            type: "success",
-            data: { label: `Stopped ${action.label}` },
-            voiceResponse: "Stopped.",
-          });
-          setTimeout(() => setAiState(null), 2000);
-        } else {
-          setAiState({
-            type: "error",
-            data: { label: `Timer '${action.label}' not found` },
-            voiceResponse: "Not found.",
-          });
-          setTimeout(() => setAiState(null), 2000);
-        }
-      } else if (action.action === "stop_all") {
-        clearAllTimers();
-        setAiState({
-          type: "success",
-          data: { label: "Timers Cleared" },
-          voiceResponse: "All stopped.",
-        });
-        setTimeout(() => setAiState(null), 2000);
-      } else {
-        addTimer(action.seconds, action.label || "Timer");
-      }
-    } else if (action.intent === "QUERY") {
-      setAiState({
-        type: "instruction",
-        data: { text: action.answer },
-        voiceResponse: "Here is the answer.",
-      });
-      setTimeout(() => setAiState(null), 6000);
-    } else if (action.intent === "SHOPPING_LIST") {
-      // Actions: add, remove, clear, show, addMissingIngredients
-      if (action.action === "add") {
-        console.log("Adding shopping item:", action);
-        const itemLabel = action.label ?? action.item ?? null;
-        if (itemLabel) {
-          const prevState = aiState; // snapshot of current UI (likely recipe)
+  // --- RESPONSE DISPATCHER ---
+  const handleAIResponse = async (action: any) => {
+    const intentType = action.intent || action.type || action.interface;
 
-          addShopItem(itemLabel, action.quantity ?? 1);
-          const qtyText = action.quantity ? ` × ${action.quantity}` : "";
-
-          // hide recipe, show toast
-          setAiState(null);
-          setToastMessage(`Added ${itemLabel}${qtyText}`);
-
-          setTimeout(() => {
-            setToastMessage(null);
-            // restore recipe if that was the previous state
-            if (prevState && prevState.type === "suggest_recipe") {
-              setAiState(prevState);
-            }
-          }, 3000);
-        }
-      } else if (action.action === "remove") {
-        const removeLabel = action.label ?? action.item ?? "";
-        const didRemove = await removeShopItem(removeLabel);
-        if (didRemove) {
-          setAiState({
-            type: "success",
-            data: { label: `Removed ${removeLabel}` },
-            voiceResponse: `Removed ${removeLabel}`,
-          });
-        } else {
-          setAiState({
-            type: "error",
-            data: { label: `Item not found: ${removeLabel}` },
-            voiceResponse: `Item not found`,
-          });
-        }
-        setTimeout(() => setAiState(null), 6000);
-      } else if (action.action === "clear") {
-        clearShopping();
-        setAiState({
-          type: "success",
-          data: { label: "Shopping list cleared" },
-          voiceResponse: "Cleared shopping list",
-        });
-        setTimeout(() => setAiState(null), 6000);
-      } else if (action.action === "show") {
-        try {
-          await showAll();
-        } catch (err) {
-          console.error("showAll failed", err);
-        }
-
-        setAiState({
-          type: "shopping_list",
-          data: { label: "Shopping" },
-          voiceResponse: "Showing shopping list",
-        });
-        setTimeout(() => setAiState(null), 6000);
-      } else if (action.action === "addMissingIngredients") {
-        // Add all missing ingredients of the current recipe
-        const currentRecipe =
-          suggestion?.recipes?.[
-            selectedIndex != null ? selectedIndex : 0
-          ];
-
-        const itemsToAdd:
-          | Array<{ name: string; quantity?: number }>
-          | [] =
-          currentRecipe?.ingredientsDetailed
-            ?.filter((ing) => !ing.fromUserIngredients)
-            .map((ing) => ({
-              name: ing.name,
-              quantity: ing.quantity,
-            })) || [];
-
-        if (itemsToAdd.length > 0) {
-          const prevState = aiState; // snapshot current UI (recipe)
-
-          await addShopItems(itemsToAdd);
-
-          // hide recipe, show toast
-          setAiState(null);
-          setToastMessage(`Added ${itemsToAdd.length} missing ingredients`);
-
-          setTimeout(() => {
-            setToastMessage(null);
-            if (prevState && prevState.type === "suggest_recipe") {
-              setAiState(prevState);
-            }
-          }, 3000);
-        }
-      }
-    } else if (action.intent === "FRIDGE_INVENTORY") {
-      if (action.action === "hide") {
+    // 1. GENERATE / START COOKING
+    if (intentType === "GENERATE_RECIPE") {
+      if (action.recipe) {
+        loadRecipe(action.recipe);
         setAiState(null);
-        setStatus(AssistantStatus.IDLE);
-      } else if (action.action === "scan") {
-        if (videoRef.current) {
-          setStatus(AssistantStatus.PROCESSING);
-          const items = await detectIngredientsFromImage(videoRef.current);
-          setFridgeInventory(items);
-          setAiState({
-            type: "fridge_inventory",
-            data: { fridgeItems: items },
-            voiceResponse: `I detected ${items.length} items.`,
-          });
-          setStatus(AssistantStatus.IDLE);
-        } else {
-          setAiState({
-            type: "error",
-            data: { label: "Camera not available" },
-            voiceResponse: "I can't access the camera right now.",
-          });
-          setStatus(AssistantStatus.IDLE);
+        setSuggestion(null);
+        jumpToStep(0);
+        if (action.recipe.steps?.length > 0) {
+          checkAndSpawnTimer(action.recipe.steps[0]);
         }
       }
       return;
+    }
+
+    // 2. NAVIGATE STEPS
+    if (intentType === "NAVIGATE") {
+      const dir = action.direction?.toLowerCase();
+      const target = action.target;
+
+      console.log(`Executing Navigation: dir=${dir} (target=${target})`);
+
+      if (dir === "next") nextStep();
+      else if (dir === "prev" || dir === "previous") prevStep();
+      else if (dir === "jump" || dir === "last" || dir === "first") {
+        if (target === "first" || dir === "first") jumpToStep(0);
+        else if (target === "last" || dir === "last") {
+          const currentRecipe = useCookingState.getState().activeRecipe;
+          if (currentRecipe?.steps) jumpToStep(currentRecipe.steps.length - 1);
+        } else if (typeof target === "number") jumpToStep(target);
+      }
+
+      const updatedState = useCookingState.getState();
+      const newIndex = updatedState.currentStepIndex;
+      const steps = updatedState.activeRecipe?.steps;
+      if (steps && steps[newIndex]) checkAndSpawnTimer(steps[newIndex]);
+      return;
+    }
+
+    // 3. RECIPE SUGGESTIONS
+    if (intentType === "suggest_recipe") {
+      const incomingData = action.data || {};
+      const currentRecipes =
+        useCookingState.getState().suggestion?.recipes || [];
+      const newRecipes =
+        incomingData.recipes?.length > 0
+          ? incomingData.recipes
+          : currentRecipes;
+
+      if (!useCookingState.getState().activeRecipe) {
+        setAiState({
+          type: "suggest_recipe",
+          data: { ...incomingData, recipes: newRecipes },
+        });
+        setSuggestion({ recipes: newRecipes });
+      }
+      return;
+    }
+
+    // 4. TIMERS
+    if (intentType === "TIMER") {
+      if (action.action === "stop") {
+        const removed = removeTimer(action.label || "");
+        setToastMessage(
+          removed ? `Timer stopped: ${action.label}` : "Timer not found",
+        );
+        setTimeout(() => setToastMessage(null), 3000);
+      } else if (action.action === "stop_all") {
+        clearAllTimers();
+        setToastMessage("All timers cleared");
+        setTimeout(() => setToastMessage(null), 3000);
+      } else addTimer(action.seconds, action.label || "Timer");
+      return;
+    }
+
+    // 5. SHOPPING
+    if (intentType === "SHOPPING_LIST") {
+      if (action.action === "add") {
+        await addShopItem(action.label || action.item, action.quantity || 1);
+        setToastMessage("Added to list");
+        setTimeout(() => setToastMessage(null), 3000);
+      } else if (action.action === "show") {
+        await showAll();
+        setAiState({ type: "shopping_list", data: { label: "Shopping" } });
+      }
+      return;
+    }
+
+    // 6. FRIDGE
+    if (intentType === "FRIDGE_INVENTORY") {
+      if (action.action === "scan" && videoRef.current) {
+        const items = await detectIngredientsFromImage(videoRef.current);
+        setFridgeInventory(items);
+        setAiState({ type: "fridge_inventory", data: { fridgeItems: items } });
+      } else if (action.action === "hide") {
+        setAiState(null);
+      }
+      return;
+    }
+
+    // Fallback UI
+    if (action.interface || action.type) {
+      setAiState({
+        type: (action.type ?? action.interface) as AIResponse["type"],
+        data: action.data,
+      });
     }
   };
 
@@ -359,38 +252,15 @@ export default function ARScene() {
     <div className="h-full w-full relative bg-gray-900">
       {isCameraMode && <WebcamFeed videoRef={videoRef} />}
 
-      <div className="absolute z-10 top-4 right-4 flex flex-col gap-3 items-end">
+      <div className="absolute z-10 top-4 right-4">
         <button
           onClick={handleMicClick}
           style={{ backgroundColor: getStatusColor(status) }}
-          className={`px-6 py-3 rounded-full font-bold shadow-2xl transition-all scale-100 active:scale-95
-                    ${
-                      status === AssistantStatus.PROCESSING
-                        ? "animate-pulse"
-                        : ""
-                    }
-                    ${
-                      status === AssistantStatus.IDLE
-                        ? "text-black"
-                        : "text-white"
-                    } 
-                    `}
+          className={`px-6 py-3 rounded-full font-bold shadow-2xl text-white ${
+            status === AssistantStatus.PROCESSING ? "animate-pulse" : ""
+          }`}
         >
-          {status === AssistantStatus.IDLE && "🎤 Speak"}
-          {status === AssistantStatus.LISTENING && "👂 Listening..."}
-          {status === AssistantStatus.PROCESSING && "🧠 Thinking..."}
-        </button>
-
-        <button
-          onClick={() => setIsCameraMode(!isCameraMode)}
-          className={`backdrop-blur px-4 py-2 rounded-lg text-sm font-medium transition-all border
-                    ${
-                      isCameraMode
-                        ? "bg-red-500/80 text-white border-red-400"
-                        : "bg-white/10 text-white border-white/20 hover:bg-white/20"
-                    }`}
-        >
-          {isCameraMode ? "🚫 Stop Camera" : "📷 Start AR Mode"}
+          {status === AssistantStatus.IDLE ? "🎤 Speak" : status}
         </button>
       </div>
 
