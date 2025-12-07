@@ -21,6 +21,7 @@ export function InterfaceManager({
 }: ManagerProps) {
   // 1. Recuperiamo TUTTO lo stato necessario (Timer + Ricetta Attiva)
   const { activeTimers, activeRecipe, currentStepIndex } = useCookingState();
+  console.log("🎨 InterfaceManager Rendered. Step:", currentStepIndex);
 
   const isMenuOpen =
     activeInterface?.type === "suggest_recipe" ||
@@ -93,7 +94,9 @@ export function InterfaceManager({
             key={timer.id}
             id={timer.id}
             seconds={timer.seconds}
+            totalSeconds={timer.totalSeconds}
             label={timer.label}
+            status={timer.status}
             customPosition={position}
           />
         );

@@ -1,10 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-interface WebcamFeedProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
-}
+export function WebcamFeed() {
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-export function WebcamFeed({ videoRef }: WebcamFeedProps) {
   useEffect(() => {
     async function setupCamera() {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -25,6 +23,7 @@ export function WebcamFeed({ videoRef }: WebcamFeedProps) {
         }
       }
     }
+
     setupCamera();
   }, []);
 

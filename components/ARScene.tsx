@@ -33,8 +33,10 @@ export default function ARScene() {
     jumpToStep,
     setSuggestion,
     addTimer,
-    removeTimer,
+    startTimer,
+    removeTimerById,
     clearAllTimers,
+    stopCooking,
   } = useCookingState();
 
   const { status, setStatus } = useAssistantState();
@@ -44,44 +46,47 @@ export default function ARScene() {
   // --- LOCAL STATE ---
   const [aiState, setAiState] = useState<AIResponse | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const { isListening, transcript, startListening } = useVoiceInput();
-  const [isCameraMode] = useState(false);
+  const [isCameraMode, setIsCameraMode] = useState(true);
   const lastProcessedText = useRef("");
 
-  // --- HELPER: TIMER SPAWNER ---
-  // secondo me questo non dovrebbe essere qui
+  /**
+   * Helper: Timer Spawner
+   * Acts as an orchestrator to spawn timers required by specific recipe steps.
+   * Timers are created in 'idle' mode (autoStart=false), waiting for user confirmation.
+   */
   const checkAndSpawnTimer = (step: AtomicStep) => {
     if (step && step.timerSeconds && step.timerSeconds > 0) {
-      const currentTimers = useCookingState.getState().activeTimers;
-
-      const alreadyExists = currentTimers.some(
-        (t) =>
-          t.label.toLowerCase().includes(step.actionVerb.toLowerCase()) ||
-          t.label.toLowerCase() === step.targetObject.toLowerCase(),
-      );
-
-      if (!alreadyExists) {
-        addTimer(step.timerSeconds, step.actionVerb);
-        setToastMessage(`Timer started: ${step.actionVerb}`);
-        setTimeout(() => setToastMessage(null), 3000);
-      }
+      addTimer(step.timerSeconds, step.actionVerb, false, step.id);
+      setToastMessage(`Timer ready: ${step.actionVerb}`);
+      setTimeout(() => setToastMessage(null), 3000);
     }
   };
 
-  // --- VOICE & API ---
+  // --- VOICE & API EFFECTS ---
+
+  // Sync assistant status with voice input state
   useEffect(() => {
     if (isListening) setStatus(AssistantStatus.LISTENING);
   }, [isListening, setStatus]);
 
+  // Trigger processing on silence detection
   useEffect(() => {
     if (!isListening && transcript) {
       if (transcript !== lastProcessedText.current) {
         lastProcessedText.current = transcript;
+        console.log("🎤 Processing transcript:", transcript);
         processVoice().catch(console.error);
       }
     }
   }, [isListening, transcript]);
 
+  /**
+   * Main Logic: Process Voice Input
+   * Captures the current application state (Fridge, Recipes, Timers) and sends it
+   * to the AI backend to determine the user's intent.
+   */
   const processVoice = async () => {
     if (!transcript) return;
     setStatus(AssistantStatus.PROCESSING);
@@ -126,12 +131,20 @@ export default function ARScene() {
       await handleAIResponse(action);
     } catch (error) {
       console.error("API Error", error);
+      setToastMessage("Connection Error");
+      setTimeout(() => setToastMessage(null), 3000);
     } finally {
       setStatus(AssistantStatus.IDLE);
+      setTimeout(() => {
+        lastProcessedText.current = "";
+      }, 1000);
     }
   };
 
-  // --- RESPONSE DISPATCHER ---
+  /**
+   * Response Dispatcher
+   * Routes the AI's intent to the appropriate state slice actions.
+   */
   const handleAIResponse = async (action: any) => {
     const intentType = action.intent || action.type || action.interface;
 
@@ -141,7 +154,9 @@ export default function ARScene() {
         loadRecipe(action.recipe);
         setAiState(null);
         setSuggestion(null);
+
         jumpToStep(0);
+
         if (action.recipe.steps?.length > 0) {
           checkAndSpawnTimer(action.recipe.steps[0]);
         }
@@ -162,19 +177,28 @@ export default function ARScene() {
         if (target === "first" || dir === "first") jumpToStep(0);
         else if (target === "last" || dir === "last") {
           const currentRecipe = useCookingState.getState().activeRecipe;
-          if (currentRecipe?.steps) jumpToStep(currentRecipe.steps.length - 1);
-        } else if (typeof target === "number") jumpToStep(target);
+          if (currentRecipe?.steps) jumpToStep(currentRecipe.steps.length);
+        } else if (typeof target === "number")
+          jumpToStep(Math.max(0, target - 1));
       }
 
-      const updatedState = useCookingState.getState();
-      const newIndex = updatedState.currentStepIndex;
-      const steps = updatedState.activeRecipe?.steps;
-      if (steps && steps[newIndex]) checkAndSpawnTimer(steps[newIndex]);
+      setTimeout(() => {
+        const updatedState = useCookingState.getState();
+        const newIndex = updatedState.currentStepIndex;
+        const steps = updatedState.activeRecipe?.steps;
+
+        if (updatedState.activeRecipe && steps && newIndex === steps.length) {
+          setToastMessage("Recipe Completed! 🎉");
+          setTimeout(() => setToastMessage(null), 4000);
+        } else if (steps && steps[newIndex])
+          checkAndSpawnTimer(steps[newIndex]);
+      }, 50);
+
       return;
     }
 
     // 3. RECIPE SUGGESTIONS
-    if (intentType === "suggest_recipe") {
+    if (intentType === "SUGGEST_RECIPE") {
       const incomingData = action.data || {};
       const currentRecipes =
         useCookingState.getState().suggestion?.recipes || [];
@@ -183,29 +207,46 @@ export default function ARScene() {
           ? incomingData.recipes
           : currentRecipes;
 
-      if (!useCookingState.getState().activeRecipe) {
-        setAiState({
-          type: "suggest_recipe",
-          data: { ...incomingData, recipes: newRecipes },
-        });
-        setSuggestion({ recipes: newRecipes });
+      if (useCookingState.getState().activeRecipe) {
+        stopCooking();
       }
+      setAiState({
+        type: "suggest_recipe",
+        data: { ...incomingData, recipes: newRecipes },
+      });
+      setSuggestion({ recipes: newRecipes });
       return;
     }
 
     // 4. TIMERS
     if (intentType === "TIMER") {
-      if (action.action === "stop") {
-        const removed = removeTimer(action.label || "");
-        setToastMessage(
-          removed ? `Timer stopped: ${action.label}` : "Timer not found",
-        );
+      // CASE A: Start an EXISTING idle timer
+      if (action.action === "start_existing" && action.id) {
+        startTimer(action.id);
         setTimeout(() => setToastMessage(null), 3000);
-      } else if (action.action === "stop_all") {
+      }
+      // CASE B: Create a NEW timer
+      else if (action.action === "start") {
+        const label = action.label || "Timer";
+        const seconds = action.seconds || 0;
+        addTimer(seconds, label, true);
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+      // CASE C: STOP specific timer
+      else if (action.action === "stop") {
+        if (action.id) {
+          removeTimerById(action.id);
+        } else {
+          console.warn("AI didn't provide ID for stop action");
+        }
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+      // CASE D: STOP ALL
+      else if (action.action === "stop_all") {
         clearAllTimers();
         setToastMessage("All timers cleared");
         setTimeout(() => setToastMessage(null), 3000);
-      } else addTimer(action.seconds, action.label || "Timer");
+      }
       return;
     }
 
@@ -222,12 +263,14 @@ export default function ARScene() {
       return;
     }
 
-    // 6. FRIDGE
+    // 6. FRIDGE INVENTORY
     if (intentType === "FRIDGE_INVENTORY") {
       if (action.action === "scan" && videoRef.current) {
+        setToastMessage("Scanning Fridge...");
         const items = await detectIngredientsFromImage(videoRef.current);
         setFridgeInventory(items);
         setAiState({ type: "fridge_inventory", data: { fridgeItems: items } });
+        setToastMessage(null);
       } else if (action.action === "hide") {
         setAiState(null);
       }
@@ -250,17 +293,25 @@ export default function ARScene() {
 
   return (
     <div className="h-full w-full relative bg-gray-900">
-      {isCameraMode && <WebcamFeed videoRef={videoRef} />}
+      {isCameraMode && <WebcamFeed />}
 
+      {/* --- UI OVERLAY BUTTONS --- */}
       <div className="absolute z-10 top-4 right-4">
         <button
           onClick={handleMicClick}
           style={{ backgroundColor: getStatusColor(status) }}
-          className={`px-6 py-3 rounded-full font-bold shadow-2xl text-white ${
+          className={`px-6 py-3 rounded-full font-bold shadow-2xl text-black ${
             status === AssistantStatus.PROCESSING ? "animate-pulse" : ""
           }`}
         >
-          {status === AssistantStatus.IDLE ? "🎤 Speak" : status}
+          {status === AssistantStatus.IDLE ? "Speak" : status}
+        </button>
+        <button
+          onClick={() => setIsCameraMode(!isCameraMode)}
+          className={`backdrop-blur px-4 py-2 rounded-lg text-sm font-medium transition-all border
+                    ${isCameraMode ? "bg-red-500/80 text-white border-red-400" : "bg-white/10 text-white border-white/20 hover:bg-white/20"}`}
+        >
+          {isCameraMode ? "🚫 Stop Camera" : "📷 Start AR Mode"}
         </button>
       </div>
 
@@ -269,6 +320,8 @@ export default function ARScene() {
         <XR store={store}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
+
+          {/* InterfaceManager handles all 3D UI rendering logic */}
           <InterfaceManager
             activeInterface={aiState}
             toastMessage={toastMessage}

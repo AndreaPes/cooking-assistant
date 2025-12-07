@@ -35,7 +35,7 @@ When you activate this feature, respond ONLY with a SINGLE JSON object
 (no explanation text) with exactly this shape:
 
 {
-  "interface": "suggest_recipe",
+"interface": "SUGGEST_RECIPE",
   "data": {
     // 1. If Generating NEW recipes: Populate this array fully (3-4 items).
     // 2. If Selecting/Navigating/Going Back: You can leave this empty [] or null to keep current list.

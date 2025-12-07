@@ -40,9 +40,14 @@ export async function POST(req: Request) {
     } = await req.json();
 
     // Helper to format list for AI (Timers)
-    const timerListString =
+    const timerContextString =
       activeTimers && activeTimers.length > 0
-        ? activeTimers.map((t: any) => `"${t.label}"`).join(", ")
+        ? activeTimers
+            .map(
+              (t: any) =>
+                `- ID: "${t.id}", Label: "${t.label}", Status: "${t.status}"`,
+            )
+            .join("\n")
         : "NONE";
 
     // Helper to format list for AI (Fridge)
@@ -75,7 +80,7 @@ export async function POST(req: Request) {
       : "CURRENTLY COOKING: NONE";
 
     console.log(
-      `🎤 User: "${userSpeech}" | Timers: [${timerListString}] | Recipes: [${recipesListString}]`,
+      `🎤 User: "${userSpeech}" | Timers: [${timerContextString}] | Recipes: [${recipesListString}]`,
     );
 
     // Build the prompt dynamically
@@ -83,7 +88,7 @@ export async function POST(req: Request) {
       You are a Logic Controller for an AR Cooking App.
       
       CURRENT APP STATE:
-      - ACTIVE TIMERS: [${timerListString}]
+      - ACTIVE TIMERS: [${timerContextString}]
       - FRIDGE ITEMS: [${fridgeListString}]
       - VISIBLE RECIPES (SUGGESTIONS): [${recipesListString}]
       - ${previewContext}
@@ -129,7 +134,7 @@ export async function POST(req: Request) {
     `;
 
     const response = await openai.chat.completions.create({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash-lite",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userSpeech },

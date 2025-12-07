@@ -4,81 +4,80 @@ export interface TimerItem {
   id: string;
   label: string;
   seconds: number;
+  totalSeconds: number;
+  status: "idle" | "running" | "paused" | "finished";
+  stepId?: string;
 }
 
 export interface TimerSlice {
   activeTimers: TimerItem[];
-  addTimer: (seconds: number, label: string) => void;
-  removeTimer: (labelKeywords: string) => boolean;
+
+  // Actions
+  addTimer: (
+    seconds: number,
+    label: string,
+    autoStart?: boolean,
+    stepId?: string,
+  ) => void;
+  startTimer: (id: string) => void;
+  pauseTimer: (id: string) => void;
   removeTimerById: (id: string) => void;
   clearAllTimers: () => void;
+  clearIdleStepTimers: () => void;
 }
 
 export const createTimerSlice: StateCreator<TimerSlice> = (set) => ({
   activeTimers: [],
 
-  // Adds a timer to the active timers
-  addTimer: (seconds, label) =>
+  // Adds a NEW timer
+  addTimer: (seconds, label, autoStart = true, stepId) =>
+    set((state) => {
+      if (stepId && state.activeTimers.some((t) => t.stepId === stepId)) {
+        return { activeTimers: state.activeTimers };
+      }
+
+      return {
+        activeTimers: [
+          ...state.activeTimers,
+          {
+            id: Math.random().toString(36).substring(2, 11),
+            label,
+            seconds,
+            totalSeconds: seconds,
+            status: autoStart ? "running" : "idle",
+            stepId,
+          },
+        ],
+      };
+    }),
+
+  // Starts a specific timer by exact ID (AI decided which one)
+  startTimer: (id) =>
     set((state) => ({
-      activeTimers: [
-        ...state.activeTimers,
-        { id: Math.random().toString(36).substring(2, 11), label, seconds },
-      ],
+      activeTimers: state.activeTimers.map((t) =>
+        t.id === id ? { ...t, status: "running" } : t,
+      ),
     })),
 
-  // Removes a specific timer through guesswork/fuzzy matching
-  removeTimer: (labelKeyword) => {
-    let wasRemoved = false;
-    set((state) => {
-      const cleanKeyword = labelKeyword.toLowerCase().trim();
+  pauseTimer: (id) =>
+    set((state) => ({
+      activeTimers: state.activeTimers.map((t) =>
+        t.id === id ? { ...t, status: "paused" } : t,
+      ),
+    })),
 
-      // logic if there is only one timer
-      if (state.activeTimers.length === 1) {
-        console.log(
-          `Single timer detected. Removing "${state.activeTimers[0].label}" (User said: "${labelKeyword}")`,
-        );
-        wasRemoved = true;
-        // clear it immediately
-        return { activeTimers: [] };
-      }
-
-      const exactMatchExists = state.activeTimers.some(
-        (t) => t.label.toLowerCase().trim() === cleanKeyword,
-      );
-
-      if (exactMatchExists) {
-        const filtered = state.activeTimers.filter((t) => {
-          return t.label.toLowerCase().trim() !== cleanKeyword;
-        });
-        wasRemoved = true;
-        return { activeTimers: filtered };
-      }
-
-      // logic for multiple timers
-      const filtered = state.activeTimers.filter((t) => {
-        const cleanLabel = t.label.toLowerCase().trim();
-        const match =
-          cleanLabel.includes(cleanKeyword) ||
-          cleanKeyword.includes(cleanLabel);
-        return !match;
-      });
-
-      if (filtered.length < state.activeTimers.length) {
-        wasRemoved = true;
-      }
-      console.log(
-        `🗑️ Timers before: ${state.activeTimers.length}, After: ${filtered.length}`,
-      );
-      return { activeTimers: filtered };
-    });
-    return wasRemoved;
-  },
-
-  // Removes a specific timer by its id
   removeTimerById: (id) =>
     set((state) => ({
       activeTimers: state.activeTimers.filter((t) => t.id !== id),
     })),
 
   clearAllTimers: () => set({ activeTimers: [] }),
+
+  clearIdleStepTimers: () =>
+    set((state) => ({
+      activeTimers: state.activeTimers.filter((t) => {
+        // Keep running timers OR manual timers (no stepId)
+        return !(t.stepId && t.status === "idle");
+      }),
+    })),
 });

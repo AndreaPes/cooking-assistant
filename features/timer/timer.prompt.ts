@@ -1,24 +1,42 @@
 export const TIMER_RULES = `
 ---------------------------------------------------------
-🔴 RULES FOR STARTING TIMERS (Label Extraction):
-1. You MUST try to extract a label if the user mentions a food or object.
-   - "Add/Set timer for pasta" -> Label: "Pasta"
-   - "Timer for the sauce" -> Label: "Sauce"
-   - "Chicken timer 10 minutes" -> Label: "Chicken"
-2. Only use "Timer" if the user specifies NO object.
----------------------------------------------------------
+⏱️ TIMER LOGIC & DECISION RULES:
 
----------------------------------------------------------
-🔵 RULES FOR STOPPING TIMERS (Strict Matching):
-1. Check the "CURRENT ACTIVE TIMERS" list.
-2. If the user's word matches an active timer phonetically or partially, use the EXISTING label.
-3. If there is ONLY 1 active timer and user says "Stop timer", return that label.
-4. If NO match is found, return the User's exact word.
+CONTEXT:
+- You receive a list of "CURRENT ACTIVE TIMERS" with their IDs, Labels, and Status (idle/running).
+
+1. START COMMANDS ("Start timer", "Start pasta", "Go"):
+   - **CHECK:** Look at the "CURRENT ACTIVE TIMERS" list.
+   - **MATCH EXISTING:** Is there an IDLE timer that matches the user's label (e.g. "Egg")?
+     - OR if the user just says "Start" and there is exactly one IDLE timer?
+     - -> ACTION: "start_existing" | ID: <the_timer_id>
+   - **CREATE NEW:** If no matching idle timer is found:
+     - -> ACTION: "start" | Label: <extracted_label> | Seconds: <extracted_seconds>
+   - CRITICAL: If user says generic "Start timer" or just "Start", AND there is at least one IDLE timer, you MUST return action: "start_existing" with that timer's ID. Do NOT create a new timer labeled "timer".
+
+2. STOP COMMANDS ("Stop timer", "Stop egg"):
+   - **CHECK:** Look at the "CURRENT ACTIVE TIMERS" list.
+   - **MATCH:** Find the running timer that matches the label.
+     - -> ACTION: "stop" | ID: <the_timer_id>
+
+3. TIMING LOGIC:
+   - If user says "10 minutes", seconds = 600.
+   - If no time is specified for a NEW timer, default to 0 (app will ask or use default).
+
+4. LABELS:
+   - Extract food/object name (e.g., "Pasta", "Egg").
+   - If specific ("Timer 1"), use that.
 ---------------------------------------------------------
 `;
 
 export const TIMER_JSON_FORMAT = `
-- Start: { "intent": "TIMER", "action": "start", "seconds": number, "label": string }
-- Stop:  { "intent": "TIMER", "action": "stop", "label": string }
-- Stop All: { "intent": "TIMER", "action": "stop_all" }
+Respond ONLY with a SINGLE JSON object:
+
+{
+  "intent": "TIMER",
+  "action": "start" | "start_existing" | "stop" | "stop_all",
+  "id": "string",
+  "label": "string",
+  "seconds": number
+}
 `;

@@ -1,15 +1,9 @@
 import { Html } from "@react-three/drei";
 import { useEffect, useState, useRef } from "react";
 import { useCookingState } from "@/state/cookingState";
+import { TimerItem } from "@/state/slices/timerSlice";
 
-interface TimerProps {
-  /** Unique ID from the store, used for deletion */
-  id: string;
-  /** Initial duration in seconds */
-  seconds: number;
-  /** Display name (e.g., "Pasta") */
-  label?: string;
-  /** 3D coordinates for stacking [x, y, z] */
+interface TimerProps extends TimerItem {
   customPosition?: [number, number, number];
 }
 
@@ -18,6 +12,7 @@ export function Timer({
   seconds,
   label = "Timer",
   customPosition,
+  status,
 }: TimerProps) {
   // --- State ---
   const [timeLeft, setTimeLeft] = useState(seconds);
@@ -86,17 +81,14 @@ export function Timer({
    * Decrements time every second. Triggers alarm at 0.
    */
   useEffect(() => {
-    if (timeLeft > 0) {
+    if (status === "running" && timeLeft > 0) {
       const interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
       return () => clearInterval(interval);
-    } else {
-      // Time is up!
-      if (!isFinished) {
-        setIsFinished(true);
-        playAlarmSound();
-      }
+    } else if (status === "running" && timeLeft <= 0) {
+      setIsFinished(true);
+      playAlarmSound();
     }
-  }, [timeLeft, isFinished]); // Added isFinished dependency for safety
+  }, [timeLeft, status]);
 
   /**
    * Self-Destruct Sequence:
@@ -127,11 +119,10 @@ export function Timer({
 
   return (
     <group position={positionVector}>
-      {/* Scale 0.4 makes it look like a compact widget/smartwatch interface */}
       <Html transform occlude scale={0.4}>
         <div
           className={`
-            w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg transition-all duration-500
+            w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg transition-all duration-500 ${status === "idle" ? "opacity-50 grayscale" : ""}
             ${
               isFinished
                 ? "bg-red-500/40 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse"
