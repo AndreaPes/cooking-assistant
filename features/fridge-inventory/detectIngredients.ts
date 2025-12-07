@@ -1,38 +1,34 @@
-// features/fridge-inventory/detectIngredients.ts
-import * as cocoSsd from "@tensorflow-models/coco-ssd";
-import "@tensorflow/tfjs";
+import { captureVideoFrame } from "@/lib/cameraUtils";
 
 export interface FridgeItem {
-    name: string;
-    quantity: number;
+  name: string;
+  quantity: number;
 }
 
-/**
- * Detect ingredients from an HTMLVideoElement or HTMLImageElement
- */
 export async function detectIngredientsFromImage(
-    videoOrImage: HTMLVideoElement | HTMLImageElement
+  videoElement: HTMLVideoElement,
 ): Promise<FridgeItem[]> {
-    // 1. Load the model (cache in memory)
-    const model = await cocoSsd.load();
+  // 1. Cattura lo screenshot
+  const base64Image = captureVideoFrame(videoElement);
+  if (!base64Image) {
+    console.warn("Could not capture video frame");
+    return [];
+  }
 
-    // 2. Run detection
-    const predictions = await model.detect(videoOrImage);
-
-    // 3. Filter by confidence (ad esempio >= 0.5)
-    const filtered = predictions.filter(p => p.score >= 0.5);
-
-    // 4. Group and count quantity
-    const counts: Record<string, number> = {};
-    filtered.forEach(p => {
-        const name = p.class.toLowerCase(); // es. "apple"
-        counts[name] = (counts[name] || 0) + 1;
+  try {
+    // 2. Chiama la TUA nuova API vision
+    const res = await fetch("/api/vision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: base64Image }),
     });
 
-    const items: FridgeItem[] = Object.entries(counts).map(([name, quantity]) => ({
-        name,
-        quantity,
-    }));
+    if (!res.ok) throw new Error("Vision API failed");
 
-    return items;
+    const data = await res.json();
+    return data.ingredients || [];
+  } catch (error) {
+    console.error("Error detecting ingredients:", error);
+    return [];
+  }
 }

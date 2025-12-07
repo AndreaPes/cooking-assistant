@@ -265,14 +265,43 @@ export default function ARScene() {
 
     // 6. FRIDGE INVENTORY
     if (intentType === "FRIDGE_INVENTORY") {
-      if (action.action === "scan" && videoRef.current) {
-        setToastMessage("Scanning Fridge...");
+      // DEBUG LOG
+      console.log("🔍 Tentativo Scan:", {
+        action: action.action,
+        videoRefExists: !!videoRef.current, // true se esiste, false se null
+        isCameraMode: isCameraMode,
+      });
+      if (action.action === "scan") {
+        if (!videoRef.current) {
+          setToastMessage("⚠️ Camera not found! Turn it on.");
+          console.error(
+            "❌ ERRORE: videoRef.current è null. La webcam è accesa?",
+          );
+          return;
+        }
+        // A. User Feedback
+        setToastMessage("📸 Analyzing Fridge...");
+
+        // B. Call Vision API (via detectIngredients helper)
         const items = await detectIngredientsFromImage(videoRef.current);
-        setFridgeInventory(items);
-        setAiState({ type: "fridge_inventory", data: { fridgeItems: items } });
-        setToastMessage(null);
+
+        // C. Update State
+        if (items.length > 0) {
+          setFridgeInventory(items);
+          setAiState({
+            type: "fridge_inventory",
+            data: { fridgeItems: items },
+          });
+          setToastMessage("Analysis Complete ✅");
+        } else {
+          setToastMessage("No food detected 🤷‍♂️");
+        }
+
+        setTimeout(() => setToastMessage(null), 3000);
       } else if (action.action === "hide") {
         setAiState(null);
+        setToastMessage("Inventory hidden");
+        setTimeout(() => setToastMessage(null), 2000);
       }
       return;
     }
@@ -293,7 +322,7 @@ export default function ARScene() {
 
   return (
     <div className="h-full w-full relative bg-gray-900">
-      {isCameraMode && <WebcamFeed />}
+      {isCameraMode && <WebcamFeed videoRef={videoRef} />}
 
       {/* --- UI OVERLAY BUTTONS --- */}
       <div className="absolute z-10 top-4 right-4">
@@ -314,6 +343,28 @@ export default function ARScene() {
           {isCameraMode ? "🚫 Stop Camera" : "📷 Start AR Mode"}
         </button>
       </div>
+
+      {(transcript || isListening) && (
+        <div className="absolute bottom-12 left-0 w-full flex justify-center z-50 pointer-events-none">
+          <div
+            className="
+            bg-black/60 backdrop-blur-md border border-white/10
+            text-white px-8 py-4 rounded-3xl
+            text-xl font-medium shadow-2xl
+            max-w-[85%] text-center
+            animate-in slide-in-from-bottom-5 fade-in duration-300
+          "
+          >
+            {transcript ? (
+              <span>&quot;{transcript}&quot;</span>
+            ) : (
+              <span className="text-white/50 italic text-base">
+                Listening...
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <Canvas gl={{ alpha: true }}>
         <OrbitControls makeDefault />

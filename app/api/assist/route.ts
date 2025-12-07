@@ -24,8 +24,7 @@ import {
 } from "@/features/step-guide/stepGuide.prompt";
 
 const openai = new OpenAI({
-  apiKey: process.env.GOOGLE_API_KEY,
-  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function POST(req: Request) {
@@ -86,6 +85,9 @@ export async function POST(req: Request) {
     // Build the prompt dynamically
     const systemPrompt = `
       You are a Logic Controller for an AR Cooking App.
+      Your goal is to ACT, not just answer. 
+      If the user's request matches a Feature Rule, trigger that feature IMMEDIATELY.
+      Do NOT return "QUERY" or explain what you can't do if a valid Action is available.
       
       CURRENT APP STATE:
       - ACTIVE TIMERS: [${timerContextString}]
@@ -94,47 +96,36 @@ export async function POST(req: Request) {
       - ${previewContext}
       - ${activeRecipeContext}
       
-      Classify user intent into JSON.
-      
-      === FEATURE RULES ===
+      === FEATURE RULES (Highest Priority first) ===
       
       ${TIMER_RULES}
+      ${STEP_GUIDE_RULES}
+      ${SUGGEST_RECIPE_RULES}      
       ${SHOPPING_LIST_RULES}
       ${FRIDGE_INVENTORY_RULES}
-      ${SUGGEST_RECIPE_RULES}      
-      ${STEP_GUIDE_RULES}
 
       Additional connection rule:
-      - When the user asks what they can cook "with what I have in the fridge"
-        or similar expressions (e.g. "using my fridge items", "with these ingredients"),
-        you MUST treat CURRENT FRIDGE ITEMS as the list of ingredients they currently have.
-      - In that case, respond using the "suggest_recipe" JSON format, where:
-        - ingredientsYouHave and ingredientsDetailed.fromUserIngredients = true
-          are derived from CURRENT FRIDGE ITEMS.
-        - Any extra ingredients not in CURRENT FRIDGE ITEMS must be marked as
-          ingredientsMissing and have fromUserIngredients = false.
+      - **STRICT INVENTORY MODE:**
+        - The list "FRIDGE ITEMS" contains EVERYTHING the user has.
+        - If the user asks for recipes, do NOT assume they have ingredients not listed there (even basics like bread, oil, pasta).
+        - If a recipe needs an item not in "FRIDGE ITEMS", mark it as missing.
+        - Treat "sliced ham", "ham", "prosciutto" as synonyms when matching.
       
       =====================
       
-      JSON STRUCTURE:
-      {
-        "intent": "string",
-        ...fields based on intent
-      }
-      
-      VALID INTENTS:
+      VALID INTENTS (JSON Only):
       ${TIMER_JSON_FORMAT}
-      ${SHOPPING_LIST_JSON_FORMAT}
-      ${CORE_JSON_FORMAT}
-      ${FRIDGE_INVENTORY_JSON_FORMAT}
-      ${SUGGEST_RECIPE_JSON_FORMAT}
       ${STEP_GUIDE_JSON_FORMAT}
+      ${SUGGEST_RECIPE_JSON_FORMAT}
+      ${SHOPPING_LIST_JSON_FORMAT}
+      ${FRIDGE_INVENTORY_JSON_FORMAT}
+      ${CORE_JSON_FORMAT} 
       
       Return ONLY JSON.
     `;
 
     const response = await openai.chat.completions.create({
-      model: "gemini-2.5-flash-lite",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userSpeech },

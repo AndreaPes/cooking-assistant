@@ -1,19 +1,25 @@
-import { useEffect, useRef } from "react";
+import { RefObject, useEffect } from "react";
 
-export function WebcamFeed() {
-  const videoRef = useRef<HTMLVideoElement>(null);
+interface WebcamFeedProps {
+  videoRef: RefObject<HTMLVideoElement | null>;
+}
 
+export function WebcamFeed({ videoRef }: WebcamFeedProps) {
   useEffect(() => {
+    let currentStream: MediaStream | null = null;
+
     async function setupCamera() {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: "environment",
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
             },
           });
+
+          currentStream = stream;
 
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
@@ -25,7 +31,16 @@ export function WebcamFeed() {
     }
 
     setupCamera();
-  }, []);
+
+    return () => {
+      if (currentStream) {
+        currentStream.getTracks().forEach((track) => track.stop());
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [videoRef]);
 
   return (
     <video
