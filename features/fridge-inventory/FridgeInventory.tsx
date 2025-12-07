@@ -9,7 +9,10 @@ interface FridgeInventoryProps {
   customPosition?: [number, number, number];
 }
 
-export function FridgeInventory({ items, customPosition }: FridgeInventoryProps) {
+export function FridgeInventory({
+  items,
+  customPosition,
+}: FridgeInventoryProps) {
   // Default to right-side placement like the Timer
   const positionVector = customPosition || [5, 0, -2];
 
@@ -32,9 +35,7 @@ export function FridgeInventory({ items, customPosition }: FridgeInventoryProps)
 
           {/* If empty */}
           {items.length === 0 && (
-            <div className="text-center text-white/60 text-sm">
-              (no items detected)
-            </div>
+            <div className="text-center text-white/60 text-sm">EMPTY</div>
           )}
 
           {/* Ingredient List */}

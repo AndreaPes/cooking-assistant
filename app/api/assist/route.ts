@@ -58,7 +58,7 @@ export async function POST(req: Request) {
               const name = i.name ?? "unknown";
               return `${qty}x ${name}`;
             })
-            .join(", ")
+            .join("\n")
         : "NONE";
 
     // Helper to format list for AI (Recipes)

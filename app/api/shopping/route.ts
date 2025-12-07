@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/shopping
-// GET /api/shopping?id=123
-// GET /api/shopping?label=egg
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -39,26 +36,22 @@ export async function GET(req: Request) {
   }
 }
 
-
-// PUT /api/shopping?id=123
-// PUT /api/shopping?label=egg
 export async function PUT(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     const label = searchParams.get("label");
 
-    // Devi specificare o id o label, non entrambi e non nessuno
     if (id && label) {
       return NextResponse.json(
         { error: "specify-only-one-of-id-or-label" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (!id && !label) {
       return NextResponse.json(
         { error: "missing-id-or-label" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -66,10 +59,7 @@ export async function PUT(req: Request) {
     const quantity = Number(body.quantity);
 
     if (!Number.isFinite(quantity) || quantity < 0) {
-      return NextResponse.json(
-        { error: "invalid-quantity" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "invalid-quantity" }, { status: 400 });
     }
 
     const where = id ? { id } : { label: label as string };
@@ -82,23 +72,35 @@ export async function PUT(req: Request) {
     return NextResponse.json(item);
   } catch (err) {
     console.error(err);
-    // opzionale: qui potresti distinguere "not found" (P2025) da altri errori
     return NextResponse.json({ error: "update-failed" }, { status: 500 });
   }
 }
 
-
-
-// POST /api/shopping
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const item = await prisma.shoppingItem.create({
-      data: {
-        label: body.label,
-        quantity: typeof body.quantity === "number" ? body.quantity : 1,
-      },
+    const label = body.label.toLowerCase().trim();
+    const quantity = typeof body.quantity === "number" ? body.quantity : 1;
+
+    // 1. Cerchiamo se esiste già
+    const existing = await prisma.shoppingItem.findUnique({
+      where: { label }, // Assicurati che 'label' sia @unique nel tuo schema Prisma!
     });
+
+    let item;
+    if (existing) {
+      // 2. Se esiste, aggiorniamo (Logica Server-Side)
+      item = await prisma.shoppingItem.update({
+        where: { id: existing.id },
+        data: { quantity: (existing.quantity || 0) + quantity },
+      });
+    } else {
+      // 3. Se non esiste, creiamo
+      item = await prisma.shoppingItem.create({
+        data: { label, quantity },
+      });
+    }
+
     return NextResponse.json(item);
   } catch (err) {
     console.error(err);
@@ -106,9 +108,6 @@ export async function POST(req: Request) {
   }
 }
 
-// DELETE /api/shopping
-// DELETE /api/shopping?id=123
-// DELETE /api/shopping?label=egg
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -119,7 +118,7 @@ export async function DELETE(req: Request) {
     if (id && label) {
       return NextResponse.json(
         { error: "specify-only-one-of-id-or-label" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

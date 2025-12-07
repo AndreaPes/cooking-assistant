@@ -40,8 +40,14 @@ export default function ARScene() {
   } = useCookingState();
 
   const { status, setStatus } = useAssistantState();
-  const { setFridgeInventory } = useFridgeInventoryState();
-  const { addItem: addShopItem, showAll } = useShoppingState();
+  const { addFridgeItems, removeFridgeItems, clearFridgeInventory } =
+    useFridgeInventoryState();
+  const {
+    addItem: addShopItem,
+    showAll,
+    removeItem: removeShopItem,
+    clearAll: clearShopList,
+  } = useShoppingState();
 
   // --- LOCAL STATE ---
   const [aiState, setAiState] = useState<AIResponse | null>(null);
@@ -59,8 +65,6 @@ export default function ARScene() {
   const checkAndSpawnTimer = (step: AtomicStep) => {
     if (step && step.timerSeconds && step.timerSeconds > 0) {
       addTimer(step.timerSeconds, step.actionVerb, false, step.id);
-      setToastMessage(`Timer ready: ${step.actionVerb}`);
-      setTimeout(() => setToastMessage(null), 3000);
     }
   };
 
@@ -250,59 +254,108 @@ export default function ARScene() {
       return;
     }
 
-    // 5. SHOPPING
+    // 5. SHOPPING LIST
     if (intentType === "SHOPPING_LIST") {
+      const label = action.label || action.item || "";
+
+      // ADD
       if (action.action === "add") {
-        await addShopItem(action.label || action.item, action.quantity || 1);
-        setToastMessage("Added to list");
-        setTimeout(() => setToastMessage(null), 3000);
-      } else if (action.action === "show") {
-        await showAll();
-        setAiState({ type: "shopping_list", data: { label: "Shopping" } });
+        await addShopItem(label, action.quantity || 1);
+        setToastMessage(`Added ${label}`);
       }
+      // SHOW
+      else if (action.action === "show") {
+        await showAll();
+        setAiState({ type: "shopping_list", data: { label: "Shopping List" } });
+      }
+      // REMOVE
+      else if (action.action === "remove") {
+        await removeShopItem(label);
+        setToastMessage(`Removed from list: ${label}`);
+      }
+      // CLEAR
+      else if (action.action === "clear") {
+        await clearShopList();
+        setToastMessage("Shopping list cleared");
+      }
+      setTimeout(() => setToastMessage(null), 3000);
       return;
     }
 
     // 6. FRIDGE INVENTORY
     if (intentType === "FRIDGE_INVENTORY") {
-      // DEBUG LOG
-      console.log("🔍 Tentativo Scan:", {
-        action: action.action,
-        videoRefExists: !!videoRef.current, // true se esiste, false se null
-        isCameraMode: isCameraMode,
-      });
-      if (action.action === "scan") {
-        if (!videoRef.current) {
-          setToastMessage("⚠️ Camera not found! Turn it on.");
-          console.error(
-            "❌ ERRORE: videoRef.current è null. La webcam è accesa?",
-          );
-          return;
-        }
-        // A. User Feedback
+      // Visual Scan
+      if (action.action === "scan" && videoRef.current) {
         setToastMessage("📸 Analyzing Fridge...");
+        const newScannedItems = await detectIngredientsFromImage(
+          videoRef.current,
+        );
 
-        // B. Call Vision API (via detectIngredients helper)
-        const items = await detectIngredientsFromImage(videoRef.current);
+        if (newScannedItems.length > 0) {
+          addFridgeItems(newScannedItems);
+          const updatedList = useFridgeInventoryState.getState().fridgeItems;
 
-        // C. Update State
-        if (items.length > 0) {
-          setFridgeInventory(items);
           setAiState({
             type: "fridge_inventory",
-            data: { fridgeItems: items },
+            data: { fridgeItems: updatedList },
           });
-          setToastMessage("Analysis Complete ✅");
+          setToastMessage(
+            `Scan complete. Found ${newScannedItems.length} items.`,
+          );
         } else {
           setToastMessage("No food detected 🤷‍♂️");
         }
-
         setTimeout(() => setToastMessage(null), 3000);
-      } else if (action.action === "hide") {
+      }
+
+      // Manual Voice Add
+      else if (action.action === "add_manual" && action.items) {
+        addFridgeItems(action.items);
+        const count = action.items.length;
+        setToastMessage(`Added ${count} ${count === 1 ? "item" : "items"}`);
+        const updatedList = useFridgeInventoryState.getState().fridgeItems;
+
+        setAiState({
+          type: "fridge_inventory",
+          data: { fridgeItems: updatedList },
+        });
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+
+      // Hide Inventory
+      else if (action.action === "hide") {
         setAiState(null);
         setToastMessage("Inventory hidden");
         setTimeout(() => setToastMessage(null), 2000);
       }
+
+      // Manual Voice Remove
+      else if (action.action === "remove_manual" && action.items) {
+        removeFridgeItems(action.items);
+        const freshList = useFridgeInventoryState.getState().fridgeItems;
+
+        console.log("Updates List after remove:", freshList);
+
+        setToastMessage(`Removed items`);
+        setAiState({
+          type: "fridge_inventory",
+          data: { fridgeItems: [...freshList] },
+        });
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+
+      // Clear Inventory
+      else if (action.action === "clear") {
+        clearFridgeInventory();
+
+        setToastMessage("Inventory cleared 🗑️");
+        setAiState({
+          type: "fridge_inventory",
+          data: { fridgeItems: [] },
+        });
+        setTimeout(() => setToastMessage(null), 2000);
+      }
+
       return;
     }
 

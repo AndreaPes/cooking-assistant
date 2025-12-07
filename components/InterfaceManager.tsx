@@ -5,7 +5,7 @@ import { useCookingState } from "@/state/cookingState";
 // Assicurati che i percorsi siano corretti in base a dove hai salvato i file
 import { Timer } from "@/features/timer/Timer";
 import { StepGuide } from "@/features/step-guide/StepGuide";
-import { ShoppingList } from "@/features/shopping_list/shopping_list";
+import { ShoppingList } from "@/features/shopping_list/ShoppingList";
 import { NotificationBadge } from "@/features/notifications/NotificationBadge";
 import { FridgeInventory } from "@/features/fridge-inventory/FridgeInventory";
 import { SuggestRecipe } from "@/features/suggest_recipe/SuggestRecipe";

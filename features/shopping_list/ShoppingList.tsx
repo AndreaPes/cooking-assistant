@@ -1,27 +1,24 @@
-
 import { Html } from "@react-three/drei";
 import { useState, useEffect, useRef } from "react";
-import { useShoppingState, loadShoppingFromServer } from "../../state/shoppingState";
+import {
+  useShoppingState,
+  loadShoppingFromServer,
+} from "@/state/shoppingState";
 
 interface ShoppingItemProps {
-  /** Display name (e.g., "Milk") */
   label: string;
-  /** Quantity of the item */
   quantity?: number;
-  /** 3D coordinates for positioning [x, y, z] */
   customPosition?: [number, number, number];
 }
 
-export function ShoppingList({ 
+export function ShoppingList({
   label,
   quantity,
   customPosition,
 }: ShoppingItemProps) {
-
   // --- State & Hooks ---
 
-  const { items, addItem, removeItem, clearAll } = useShoppingState();
-  const [newItem, setNewItem] = useState("");
+  const { items } = useShoppingState();
   const [lastAdded, setLastAdded] = useState<string | null>(null);
 
   // Default to right-side stacking if no position provided
@@ -65,11 +62,12 @@ export function ShoppingList({
     }
     const first = items[0];
     if (prevFirstId.current && prevFirstId.current !== first.id) {
-      setLastAdded(`${first.label}${first.quantity ? ` × ${first.quantity}` : ''}`);
+      setLastAdded(
+        `${first.label}${first.quantity ? ` × ${first.quantity}` : ""}`,
+      );
     }
     prevFirstId.current = first.id;
   }, [items]);
-
 
   return (
     <group position={positionVector}>
@@ -84,12 +82,15 @@ export function ShoppingList({
             }
           `}
         >
-          <span className={`uppercase tracking-wider text-[10px] font-bold mb-1 ${lastAdded ? "text-white" : "text-white/60"}`}>
-            {lastAdded ? "ADDED" : label ?? "Shopping List"}
+          <span
+            className={`uppercase tracking-wider text-[10px] font-bold mb-1 ${lastAdded ? "text-white" : "text-white/60"}`}
+          >
+            {lastAdded ? "ADDED" : (label ?? "Shopping List")}
           </span>
 
           <div className="text-2xl font-mono font-medium text-white tracking-tight drop-shadow-sm mb-2">
-            {lastAdded ?? `${items.length} ${items.length === 1 ? "element" : "elements"}`}
+            {lastAdded ??
+              `${items.length} ${items.length === 1 ? "element" : "elements"}`}
           </div>
 
           {/* Progress bar that fills when a new item was just added */}
@@ -105,15 +106,22 @@ export function ShoppingList({
               <li className="text-white/40 italic text-center">No elements</li>
             ) : (
               items.map((item, index) => (
-                <li key={item.id} className="flex justify-between items-center py-1">
+                <li
+                  key={item.id}
+                  className="flex justify-between items-center py-1"
+                >
                   <div className="flex items-center gap-2">
-                    <span className="text-white/60 text-sm w-5 text-right">{index + 1}.</span>
-                        <span className="text-white">
-                          {item.label}
-                          {item.quantity != null && (
-                            <span className="text-sm text-white/60 ml-2">× {item.quantity}</span>
-                          )}
+                    <span className="text-white/60 text-sm w-5 text-right">
+                      {index + 1}.
+                    </span>
+                    <span className="text-white">
+                      {item.label}
+                      {item.quantity != null && (
+                        <span className="text-sm text-white/60 ml-2">
+                          × {item.quantity}
                         </span>
+                      )}
+                    </span>
                   </div>
                 </li>
               ))
