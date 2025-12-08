@@ -130,8 +130,10 @@ export async function DELETE(req: Request) {
 
     // Cancella per label
     if (label) {
-      await prisma.shoppingItem.delete({ where: { label } });
-      return NextResponse.json({ ok: true, deletedCount: 1 });
+      const result = await prisma.shoppingItem.deleteMany({
+        where: { label: label.toLowerCase().trim() },
+      });
+      return NextResponse.json({ ok: true, deletedCount: result.count });
     }
 
     // Nessun filtro -> cancella tutti

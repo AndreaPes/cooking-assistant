@@ -16,7 +16,7 @@ type Props = {
 function formatIngredient(ing: IngredientDetailed, isExtra: boolean) {
   const hasQty = ing.quantity !== undefined && ing.unit;
   const base = hasQty ? `${ing.quantity} ${ing.unit} ${ing.name}` : ing.name;
-  return isExtra ? `${base}` : base;
+  return base;
 }
 
 function getPreviewIngredients(recipe: SingleRecipe) {
@@ -47,15 +47,10 @@ function getPreviewIngredients(recipe: SingleRecipe) {
 }
 
 export function SuggestRecipe({ data }: Props) {
-  // Access global store to sync selection state
   const { setSuggestion, setSelectedSuggestionIndex } = useCookingState();
-
-  // Local UI state
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   // --- SYNC EFFECTS ---
-
-  // 1. Sync Data from Parent
   useEffect(() => {
     if (!data || !data.recipes || data.recipes.length === 0) {
       setSuggestion(null);
@@ -65,14 +60,12 @@ export function SuggestRecipe({ data }: Props) {
     }
   }, [data, setSuggestion, setSelectedSuggestionIndex]);
 
-  // 2. Handle Auto-Selection via Voice (e.g. "Open the first one")
   useEffect(() => {
     if (!data || !data.recipes || data.recipes.length === 0) {
       setSelectedIndex(null);
       setSelectedSuggestionIndex(null);
       return;
     }
-
     if (data.selectedRecipeTitle) {
       const target = data.selectedRecipeTitle.toLowerCase();
       const idx = data.recipes.findIndex(
@@ -80,7 +73,7 @@ export function SuggestRecipe({ data }: Props) {
       );
       if (idx >= 0) {
         setSelectedIndex(idx);
-        setSelectedSuggestionIndex(idx); // Update global store context
+        setSelectedSuggestionIndex(idx);
         return;
       }
     } else {
@@ -89,71 +82,81 @@ export function SuggestRecipe({ data }: Props) {
     }
   }, [data, setSelectedSuggestionIndex]);
 
-  // --- RENDER LOGIC ---
-
-  if (!data || !data.recipes || data.recipes.length === 0) {
-    return (
-      <group position={[1.5, 0, -2]}>
-        <Html transform>
-          <div className="bg-black/60 text-white rounded-2xl p-4 w-80 text-xs space-y-2 select-none pointer-events-none border border-white/10 backdrop-blur-md">
-            <h2 className="text-lg font-semibold mb-1 text-gray-300">
-              Recipe Assistant
-            </h2>
-            <p className="opacity-80 italic">
-              &#34;I have eggs and pasta. What can I cook?&#34;
-            </p>
-          </div>
-        </Html>
-      </group>
-    );
-  }
+  if (!data || !data.recipes || data.recipes.length === 0) return null;
 
   const recipes = data.recipes;
 
-  // === SCREEN 1: LIST VIEW ===
+  // ===========================================================================
+  // SCREEN 1: LIST VIEW (OVERVIEW) - CENTERED GRID
+  // ===========================================================================
   if (selectedIndex === null) {
     return (
-      <group position={[1.5, 0, -2]}>
-        <Html transform>
-          <div className="bg-black/70 text-white rounded-2xl p-4 w-80 text-xs space-y-3">
-            <header className="border-b text-orange-400 border-white/20 pb-2 mb-1">
-              <h2 className="text-lg font-semibold">Suggestions</h2>
+      // POSIZIONE: Centrale [0, 0, -1.5]
+      <group position={[0, 0, -1.5]}>
+        <Html transform occlude center scale={0.4}>
+          <div className="bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl w-[1000px] max-w-[95vw] flex flex-col gap-6">
+            {/* Header */}
+            <header className="flex justify-between items-end border-b border-white/10 pb-4">
+              <div>
+                <span className="text-[11px] text-white/40 font-bold tracking-[0.2em] uppercase mb-1 block">
+                  COOKING ASSISTANT
+                </span>
+                <h2 className="text-4xl font-black text-orange-500 tracking-tight leading-none">
+                  SUGGESTIONS
+                </h2>
+              </div>
             </header>
 
-            <div className="space-y-2 max-h-96 overflow-auto pr-1">
+            {/* Grid Container - NO SCROLLBAR, FLEX WRAP */}
+            <div className="flex flex-wrap gap-4 justify-center items-stretch">
               {recipes.map((r, idx) => {
                 const { havePreview, extraPreview } = getPreviewIngredients(r);
                 return (
                   <div
                     key={idx}
-                    className="w-full text-left bg-white/5 border border-white/10 rounded-xl px-4 py-3 space-y-1 relative"
+                    className="flex-1 min-w-[220px] max-w-[48%] bg-black/40 border border-white/10 rounded-2xl p-5 flex flex-col justify-between hover:bg-white/5 transition-colors group"
                   >
-                    <div className="flex justify-between items-center gap-2">
-                      <h3 className="text-sm font-semibold">
-                        {r.recipeTitle ?? `Recipe ${idx + 1}`}
+                    <div>
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="text-orange-500/80 font-mono text-xs font-bold bg-orange-500/10 px-2 py-1 rounded-md">
+                          #{idx + 1}
+                        </span>
+                        <div className="flex gap-2 text-[10px] text-white/40 font-bold uppercase tracking-wide">
+                          {r.estimatedTimeMinutes && (
+                            <span>{r.estimatedTimeMinutes}M</span>
+                          )}
+                          {r.difficulty && <span>• {r.difficulty}</span>}
+                        </div>
+                      </div>
+
+                      {/* TITOLO: Break words per evitare overflow */}
+                      <h3 className="text-xl font-bold text-white leading-tight mb-3 line-clamp-2 break-words group-hover:text-orange-400 transition-colors">
+                        {r.recipeTitle}
                       </h3>
-                      <span className="text-[10px] text-gray-200 whitespace-nowrap uppercase">
-                        {r.estimatedTimeMinutes && (
-                          <>⏱ {r.estimatedTimeMinutes} min </>
-                        )}
-                        {r.difficulty && <>• {r.difficulty}</>}
-                      </span>
                     </div>
 
-                    {havePreview && (
-                      <p className="text-[10px] text-gray-200">
-                        <span className="font-semibold">You have:</span>{" "}
-                        {havePreview}
-                        {havePreview.split(",").length >= 3 && "…"}
-                      </p>
-                    )}
-                    {extraPreview && (
-                      <p className="text-[10px] text-yellow-300">
-                        <span className="font-semibold">Missing:</span>{" "}
-                        {extraPreview}
-                        {extraPreview.split(",").length >= 2 && "…"}
-                      </p>
-                    )}
+                    <div className="space-y-2 pt-3 border-t border-white/5">
+                      {havePreview && (
+                        <div>
+                          <span className="text-[9px] text-green-400/60 font-bold uppercase tracking-widest block mb-0.5">
+                            YOU HAVE
+                          </span>
+                          <p className="text-xs text-white/80 leading-relaxed line-clamp-2 break-words capitalize">
+                            {havePreview}
+                          </p>
+                        </div>
+                      )}
+                      {extraPreview && (
+                        <div>
+                          <span className="text-[9px] text-red-400/60 font-bold uppercase tracking-widest block mb-0.5">
+                            MISSING
+                          </span>
+                          <p className="text-xs text-red-300/80 leading-relaxed line-clamp-1 break-words capitalize">
+                            {extraPreview}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -164,7 +167,9 @@ export function SuggestRecipe({ data }: Props) {
     );
   }
 
-  // === SCREEN 2: DETAIL VIEW ===
+  // ===========================================================================
+  // SCREEN 2: DETAIL VIEW (BIG DASHBOARD) - CENTERED
+  // ===========================================================================
   const selectedRecipe = recipes[Math.min(selectedIndex, recipes.length - 1)];
   const {
     recipeTitle,
@@ -185,85 +190,116 @@ export function SuggestRecipe({ data }: Props) {
     extraDetailed.length === 0 && ingredientsMissing.length > 0;
 
   return (
-    <group position={[1.5, 0, -2]}>
-      <Html transform>
-        <div className="bg-black/80 backdrop-blur-xl text-white rounded-[2rem] p-6 w-96 text-xs space-y-4 shadow-[0_0_60px_rgba(0,0,0,0.6)] border border-white/20 animate-in fade-in zoom-in duration-300">
-          {/* HEADER */}
-          <div className="border-b border-white/10 pb-4">
-            <h2 className="text-2xl font-black text-orange-400 leading-tight mb-1">
-              {recipeTitle ?? "Recipe suggestion"}
-            </h2>
-            <div className="flex items-center gap-4 text-[11px] text-gray-300 uppercase tracking-wider font-medium">
-              {estimatedTimeMinutes && (
-                <span className="flex items-center gap-1">
-                  ⏱ {estimatedTimeMinutes} min
+    <group position={[0, 0, -1.5]}>
+      <Html transform occlude center scale={0.4}>
+        <div className="w-[1000px] bg-gray-900/90 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-10 flex gap-10 shadow-[0_0_80px_rgba(0,0,0,0.8)] animate-in zoom-in duration-300 max-w-[95vw]">
+          {/* LEFT: INFO & ACTIONS */}
+          <div className="flex-1 flex flex-col">
+            <span className="text-[11px] text-white/40 font-bold tracking-[0.2em] uppercase mb-2">
+              SELECTED RECIPE
+            </span>
+            <h1 className="text-5xl font-black text-orange-500 leading-tight mb-6 tracking-tight break-words">
+              {recipeTitle}
+            </h1>
+
+            <div className="flex gap-4 mb-8">
+              <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2">
+                <span className="text-white/40 text-xs font-bold uppercase tracking-wider">
+                  TIME
                 </span>
-              )}
-              {difficulty && <span>• {difficulty}</span>}
+                <span className="text-white font-mono font-bold text-lg">
+                  {estimatedTimeMinutes || "--"}m
+                </span>
+              </div>
+              <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2">
+                <span className="text-white/40 text-xs font-bold uppercase tracking-wider">
+                  DIFFICULTY:
+                </span>
+                <span className="text-white font-mono font-bold text-lg uppercase">
+                  {difficulty || "MED"}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-auto bg-black/40 rounded-2xl p-6 border border-white/5 shadow-inner">
+              <span className="text-[10px] text-white/30 font-bold uppercase tracking-widest block mb-2">
+                COMMAND
+              </span>
+              <div className="flex items-baseline gap-3">
+                <span className="text-white/60 text-lg">Say</span>
+                <span className="text-3xl font-bold text-white">
+                  &#34;Start Cooking&#34;
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* INGREDIENTS */}
-          <div className="space-y-5 max-h-[350px] overflow-y-auto pr-2">
-            {/* Have */}
-            <section>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]"></div>
-                <h3 className="font-bold text-[11px] uppercase tracking-widest text-white/80">
-                  You Have
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {haveDetailed.map((ing) => (
+          {/* RIGHT: INGREDIENTS */}
+          <div className="w-[380px] bg-black/20 rounded-3xl p-6 border border-white/5 flex flex-col h-[500px]">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+              <span className="text-[11px] text-white/40 font-bold tracking-[0.2em] uppercase">
+                INGREDIENTS
+              </span>
+            </div>
+
+            <div className="overflow-y-auto pr-2 space-y-2 custom-scrollbar flex-1 capitalize">
+              {/* AVAILABLE */}
+              {haveDetailed.map((ing, i) => (
+                <div
+                  key={i}
+                  className="flex justify-between items-center py-2 px-3 bg-green-500/5 rounded-lg border border-green-500/10"
+                >
+                  <span className="text-green-100 font-medium text-sm break-words">
+                    {ing.name}
+                  </span>
+                  <span className="text-green-100/50 text-xs font-mono whitespace-nowrap ml-2">
+                    {ing.quantity || ""} {ing.unit || ""}
+                  </span>
+                </div>
+              ))}
+              {haveFallback &&
+                ingredientsYouHave.map((name, i) => (
                   <div
-                    key={ing.name}
-                    className="bg-white/5 rounded-lg px-3 py-2 border border-white/5 text-gray-200 font-medium"
+                    key={`have-${i}`}
+                    className="py-2 px-3 bg-green-500/5 rounded-lg border border-green-500/10 text-green-100 font-medium text-sm break-words"
                   >
-                    {formatIngredient(ing, false)}
+                    {name}
                   </div>
                 ))}
-                {haveFallback &&
-                  ingredientsYouHave.map((name) => (
-                    <div
-                      key={name}
-                      className="bg-white/5 rounded-lg px-3 py-2 border border-white/5 text-gray-200"
-                    >
-                      {name}
-                    </div>
-                  ))}
-              </div>
-            </section>
 
-            {/* Missing */}
-            {(extraDetailed.length > 0 || extraFallback) && (
-              <section>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.5)]"></div>
-                  <h3 className="font-bold text-[11px] uppercase tracking-widest text-white/80">
-                    Missing
-                  </h3>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {extraDetailed.map((ing) => (
-                    <div
-                      key={ing.name}
-                      className="bg-red-500/10 text-red-100 rounded-lg px-3 py-2 border border-red-500/20 font-medium"
-                    >
-                      {formatIngredient(ing, true)}
-                    </div>
-                  ))}
-                  {extraFallback &&
-                    ingredientsMissing.map((name) => (
+              {/* MISSING */}
+              {(extraDetailed.length > 0 || extraFallback) && (
+                <div className="pt-4 mt-2">
+                  <span className="text-[10px] text-red-400/50 font-bold uppercase tracking-widest block mb-3 pl-1">
+                    MISSING ITEMS
+                  </span>
+                  <div className="space-y-2">
+                    {extraDetailed.map((ing, i) => (
                       <div
-                        key={name}
-                        className="bg-red-500/10 text-red-100 rounded-lg px-3 py-2 border border-red-500/20"
+                        key={`miss-${i}`}
+                        className="flex justify-between items-center py-2 px-3 bg-red-500/5 rounded-lg border border-red-500/10 opacity-80"
                       >
-                        {name}
+                        <span className="text-red-200 font-medium text-sm break-words">
+                          {ing.name}
+                        </span>
+                        <span className="text-red-200/50 text-xs font-mono whitespace-nowrap ml-2">
+                          {ing.quantity || ""} {ing.unit || ""}
+                        </span>
                       </div>
                     ))}
+                    {extraFallback &&
+                      ingredientsMissing.map((name, i) => (
+                        <div
+                          key={`miss-fb-${i}`}
+                          className="py-2 px-3 bg-red-500/5 rounded-lg border border-red-500/10 text-red-200 font-medium text-sm opacity-80 break-words"
+                        >
+                          {name}
+                        </div>
+                      ))}
+                  </div>
                 </div>
-              </section>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </Html>

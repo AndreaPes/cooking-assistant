@@ -1,7 +1,6 @@
 import { Html } from "@react-three/drei";
 import { useEffect, useState } from "react";
 
-// 1. Define the supported styles
 type BadgeVariant = "success" | "error" | "neutral";
 
 interface BadgeProps {
@@ -11,53 +10,48 @@ interface BadgeProps {
 
 export function NotificationBadge({ label, variant = "success" }: BadgeProps) {
   const [animate, setAnimate] = useState(false);
-
   useEffect(() => {
     requestAnimationFrame(() => setAnimate(true));
   }, []);
 
   const styles = {
     success: {
-      borderColor: "border-green-500/50",
-      shadow: "shadow-[0_0_30px_rgba(34,197,94,0.3)]",
-      iconBg: "bg-green-500",
-      iconSymbol: "✓",
+      border: "border-green-500/30",
+      bg: "bg-gray-900/90",
+      text: "text-green-400",
+      icon: "✓",
     },
     error: {
-      borderColor: "border-red-500/50",
-      shadow: "shadow-[0_0_30px_rgba(239,68,68,0.3)]",
-      iconBg: "bg-red-500",
-      iconSymbol: "✕",
+      border: "border-red-500/30",
+      bg: "bg-gray-900/90",
+      text: "text-red-400",
+      icon: "!",
     },
     neutral: {
-      borderColor: "border-blue-500/50",
-      shadow: "shadow-[0_0_30px_rgba(59,130,246,0.3)]",
-      iconBg: "bg-blue-500",
-      iconSymbol: "i",
+      border: "border-white/10",
+      bg: "bg-gray-900/90",
+      text: "text-white",
+      icon: "i",
     },
   };
-
-  const currentStyle = styles[variant];
+  const s = styles[variant];
 
   return (
-    <group position={[0, 0.5, -1.5]}>
+    <group position={[0, 0.8, -1.5]}>
       <Html transform occlude center>
         <div
           className={`
-            flex items-center gap-3 px-6 py-3 rounded-full border transition-all duration-500 ease-out
-            bg-black/60 backdrop-blur-md ${currentStyle.borderColor} ${currentStyle.shadow}
-            ${animate ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-4 scale-90"}
+            flex items-center gap-4 px-8 py-4 rounded-full border backdrop-blur-xl shadow-2xl transition-all duration-500 ease-out
+            ${s.bg} ${s.border}
+            ${animate ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
           `}
         >
-          {/* Icon Circle */}
           <div
-            className={`w-6 h-6 rounded-full ${currentStyle.iconBg} flex items-center justify-center text-black text-sm font-bold`}
+            className={`w-8 h-8 rounded-full flex items-center justify-center font-black bg-white/5 border border-white/5 ${s.text}`}
           >
-            {currentStyle.iconSymbol}
+            {s.icon}
           </div>
-
-          {/* Text */}
-          <span className="text-white font-bold text-lg tracking-wide whitespace-nowrap">
+          <span className="text-white font-bold text-lg tracking-wide uppercase">
             {label}
           </span>
         </div>

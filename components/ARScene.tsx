@@ -3,22 +3,19 @@
 import { Canvas } from "@react-three/fiber";
 import { createXRStore, XR } from "@react-three/xr";
 import { OrbitControls } from "@react-three/drei";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { InterfaceManager } from "@/components/InterfaceManager";
 import { WebcamFeed } from "@/components/WebcamFeed";
 
 import { useCookingState } from "@/state/cookingState";
-import {
-  useAssistantState,
-  AssistantStatus,
-  getStatusColor,
-} from "@/state/assistantState";
+import { AssistantStatus, useAssistantState } from "@/state/assistantState";
 import { useFridgeInventoryState } from "@/state/slices/fridgeInventorySlice";
 import { AIResponse, AtomicStep } from "@/types/interfaces";
 import { useShoppingState } from "@/state/shoppingState";
 import { detectIngredientsFromImage } from "@/features/fridge-inventory/detectIngredients";
+import { useWakeWord } from "@/hooks/useWakeWord";
 
 const store = createXRStore({ domOverlay: true });
 
@@ -26,6 +23,8 @@ export default function ARScene() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // --- GLOBAL STATE ---
+  const { detected: wakeWordDetected } = useWakeWord();
+
   const {
     loadRecipe,
     nextStep,
@@ -36,7 +35,6 @@ export default function ARScene() {
     startTimer,
     removeTimerById,
     clearAllTimers,
-    stopCooking,
   } = useCookingState();
 
   const { status, setStatus } = useAssistantState();
@@ -55,7 +53,9 @@ export default function ARScene() {
 
   const { isListening, transcript, startListening } = useVoiceInput();
   const [isCameraMode, setIsCameraMode] = useState(true);
+
   const lastProcessedText = useRef("");
+  const isProcessingRef = useRef(false);
 
   /**
    * Helper: Timer Spawner
@@ -70,6 +70,19 @@ export default function ARScene() {
 
   // --- VOICE & API EFFECTS ---
 
+  // Trigger listening on wake word detection
+  useEffect(() => {
+    if (
+      wakeWordDetected &&
+      status === AssistantStatus.IDLE &&
+      !isProcessingRef.current &&
+      !isListening
+    ) {
+      console.log("Triggering listening due to wake word");
+      handleMicClick();
+    }
+  }, [wakeWordDetected, status]);
+
   // Sync assistant status with voice input state
   useEffect(() => {
     if (isListening) setStatus(AssistantStatus.LISTENING);
@@ -79,9 +92,13 @@ export default function ARScene() {
   useEffect(() => {
     if (!isListening && transcript) {
       if (transcript !== lastProcessedText.current) {
-        lastProcessedText.current = transcript;
-        console.log("🎤 Processing transcript:", transcript);
-        processVoice().catch(console.error);
+        if (!isProcessingRef.current) {
+          console.log("🎤 Processing transcript:", transcript);
+          lastProcessedText.current = transcript;
+          processVoice().catch(console.error);
+        } else {
+          console.warn("Ignored double trigger for: ", transcript);
+        }
       }
     }
   }, [isListening, transcript]);
@@ -93,7 +110,10 @@ export default function ARScene() {
    */
   const processVoice = async () => {
     if (!transcript) return;
+
+    isProcessingRef.current = true;
     setStatus(AssistantStatus.PROCESSING);
+    console.log("Processing Single Request:", transcript);
 
     try {
       const freshState = useCookingState.getState();
@@ -140,8 +160,8 @@ export default function ARScene() {
     } finally {
       setStatus(AssistantStatus.IDLE);
       setTimeout(() => {
-        lastProcessedText.current = "";
-      }, 1000);
+        isProcessingRef.current = false;
+      }, 500);
     }
   };
 
@@ -160,7 +180,6 @@ export default function ARScene() {
         setSuggestion(null);
 
         jumpToStep(0);
-
         if (action.recipe.steps?.length > 0) {
           checkAndSpawnTimer(action.recipe.steps[0]);
         }
@@ -204,21 +223,24 @@ export default function ARScene() {
     // 3. RECIPE SUGGESTIONS
     if (intentType === "SUGGEST_RECIPE") {
       const incomingData = action.data || {};
+
       const currentRecipes =
         useCookingState.getState().suggestion?.recipes || [];
-      const newRecipes =
-        incomingData.recipes?.length > 0
-          ? incomingData.recipes
-          : currentRecipes;
+      const hasNewRecipes =
+        incomingData.recipes && incomingData.recipes.length > 0;
 
-      if (useCookingState.getState().activeRecipe) {
-        stopCooking();
-      }
-      setAiState({
-        type: "suggest_recipe",
-        data: { ...incomingData, recipes: newRecipes },
-      });
-      setSuggestion({ recipes: newRecipes });
+      const recipesToSet = hasNewRecipes
+        ? incomingData.recipes
+        : currentRecipes;
+
+      const newData = {
+        ...incomingData,
+        recipes: recipesToSet,
+        selectedRecipeTitle: incomingData.selectedRecipeTitle,
+      };
+
+      setAiState({ type: "suggest_recipe", data: newData });
+      setSuggestion(newData);
       return;
     }
 
@@ -369,63 +391,87 @@ export default function ARScene() {
   };
 
   const handleMicClick = () => {
+    if (status === AssistantStatus.PROCESSING || isListening) return;
+    lastProcessedText.current = "";
     setStatus(AssistantStatus.LISTENING);
     startListening();
+  };
+
+  // --- MIC DYNAMIC STYLES ---
+  const getMicStyles = () => {
+    switch (status) {
+      case AssistantStatus.LISTENING:
+        return "bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.6)] animate-pulse scale-110";
+      case AssistantStatus.PROCESSING:
+        return "bg-yellow-400 text-black shadow-[0_0_30px_rgba(250,204,21,0.6)] animate-spin-slow";
+      default: // IDLE
+        return "bg-white/10 text-white hover:bg-white/20 border border-white/20 backdrop-blur-md";
+    }
   };
 
   return (
     <div className="h-full w-full relative bg-gray-900">
       {isCameraMode && <WebcamFeed videoRef={videoRef} />}
 
-      {/* --- UI OVERLAY BUTTONS --- */}
-      <div className="absolute z-10 top-4 right-4">
-        <button
-          onClick={handleMicClick}
-          style={{ backgroundColor: getStatusColor(status) }}
-          className={`px-6 py-3 rounded-full font-bold shadow-2xl text-black ${
-            status === AssistantStatus.PROCESSING ? "animate-pulse" : ""
-          }`}
-        >
-          {status === AssistantStatus.IDLE ? "Speak" : status}
-        </button>
+      {/* --- UI CONTROLS (TOP RIGHT) --- */}
+      <div className="absolute z-50 top-6 right-6 flex items-center gap-6">
+        {/* 1. CAMERA TOGGLE */}
         <button
           onClick={() => setIsCameraMode(!isCameraMode)}
-          className={`backdrop-blur px-4 py-2 rounded-lg text-sm font-medium transition-all border
-                    ${isCameraMode ? "bg-red-500/80 text-white border-red-400" : "bg-white/10 text-white border-white/20 hover:bg-white/20"}`}
+          className={`
+            w-14 h-8 rounded-full p-1 transition-colors duration-300 ease-in-out shadow-lg
+            ${isCameraMode ? "bg-green-500" : "bg-gray-600/80 backdrop-blur"}
+          `}
+          aria-label="Toggle Camera"
         >
-          {isCameraMode ? "🚫 Stop Camera" : "📷 Start AR Mode"}
+          <div
+            className={`
+              w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-[cubic-bezier(0.4,0.0,0.2,1)]
+              ${isCameraMode ? "translate-x-6" : "translate-x-0"}
+            `}
+          />
+        </button>
+
+        {/* 2. MICROPHONE */}
+        <button
+          onClick={handleMicClick}
+          className={`
+            w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl
+            ${getMicStyles()}
+          `}
+          aria-label="Activate Voice"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className={`w-8 h-8 transition-transform duration-300 ${status === AssistantStatus.LISTENING ? "scale-110" : "scale-100"}`}
+          >
+            <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v8.25a3.75 3.75 0 1 1-7.5 0V4.5Z" />
+            <path d="M6 10.5a.75.75 0 0 1 .75.75v1.5a5.25 5.25 0 1 0 10.5 0v-1.5a.75.75 0 0 1 1.5 0v1.5a6.751 6.751 0 0 1-6 9.303V21a.75.75 0 0 1-1.5 0v-2.197A6.751 6.751 0 0 1 5.25 12.75v-1.5a.75.75 0 0 1 .75-.75Z" />
+          </svg>
         </button>
       </div>
 
+      {/* SUBTITLES */}
       {(transcript || isListening) && (
-        <div className="absolute bottom-12 left-0 w-full flex justify-center z-50 pointer-events-none">
-          <div
-            className="
-            bg-black/60 backdrop-blur-md border border-white/10
-            text-white px-8 py-4 rounded-3xl
-            text-xl font-medium shadow-2xl
-            max-w-[85%] text-center
-            animate-in slide-in-from-bottom-5 fade-in duration-300
-          "
-          >
+        <div className="absolute bottom-12 left-0 w-full flex justify-center z-40 pointer-events-none">
+          <div className="bg-black/60 backdrop-blur-md border border-white/10 text-white px-8 py-4 rounded-3xl text-xl font-medium shadow-2xl max-w-[85%] text-center">
             {transcript ? (
               <span>&quot;{transcript}&quot;</span>
             ) : (
-              <span className="text-white/50 italic text-base">
-                Listening...
-              </span>
+              <span className="text-white/50 italic">Listening...</span>
             )}
           </div>
         </div>
       )}
 
+      {/* AR SCENE */}
       <Canvas gl={{ alpha: true }}>
         <OrbitControls makeDefault />
         <XR store={store}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
-
-          {/* InterfaceManager handles all 3D UI rendering logic */}
           <InterfaceManager
             activeInterface={aiState}
             toastMessage={toastMessage}

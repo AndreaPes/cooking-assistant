@@ -16,44 +16,27 @@ export function ShoppingList({
   quantity,
   customPosition,
 }: ShoppingItemProps) {
-  // --- State & Hooks ---
-
   const { items } = useShoppingState();
   const [lastAdded, setLastAdded] = useState<string | null>(null);
-
-  // Default to right-side stacking if no position provided
   const positionVector = customPosition || [5, 0, -2];
-
-  // Nascondi preview dopo 3s
   const hideTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!lastAdded) return;
-
-    // Clear any existing timeout so the timer reliably resets
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-    }
-
+    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
     hideTimeoutRef.current = window.setTimeout(() => {
       setLastAdded(null);
       hideTimeoutRef.current = null;
     }, 3000);
-
     return () => {
-      if (hideTimeoutRef.current) {
-        clearTimeout(hideTimeoutRef.current);
-        hideTimeoutRef.current = null;
-      }
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
     };
   }, [lastAdded]);
 
-  // Load items from server once when component mounts
   useEffect(() => {
     loadShoppingFromServer();
   }, []);
 
-  // Show transient preview when a new item appears (e.g. added via voice)
   const prevFirstId = useRef<string | null>(null);
   useEffect(() => {
     if (!items || items.length === 0) {
@@ -71,62 +54,61 @@ export function ShoppingList({
 
   return (
     <group position={positionVector}>
-      {/* Scale 0.4 makes it look like a compact widget/smartwatch interface */}
       <Html transform occlude scale={0.4}>
         <div
-          className={`w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg transition-all duration-500
-            ${
-              lastAdded
-                ? "bg-red-500/40 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse"
-                : "bg-white/10 border-white/20 shadow-sm"
-            }
-          `}
+          className={`
+          w-[300px] p-6 rounded-[2rem] flex flex-col border transition-all duration-500
+          ${
+            lastAdded
+              ? "bg-gray-900/90 border-orange-500/50 shadow-[0_0_40px_rgba(249,115,22,0.3)]"
+              : "bg-gray-900/60 backdrop-blur-xl border-white/10 shadow-xl"
+          }
+        `}
         >
-          <span
-            className={`uppercase tracking-wider text-[10px] font-bold mb-1 ${lastAdded ? "text-white" : "text-white/60"}`}
-          >
-            {lastAdded ? "ADDED" : (label ?? "Shopping List")}
-          </span>
-
-          <div className="text-2xl font-mono font-medium text-white tracking-tight drop-shadow-sm mb-2">
-            {lastAdded ??
-              `${items.length} ${items.length === 1 ? "element" : "elements"}`}
+          {/* Header */}
+          <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+            <div>
+              <span className="text-[10px] text-white/40 font-bold tracking-[0.2em] uppercase block mb-1">
+                LIST
+              </span>
+              <h2 className="text-xl font-black text-orange-500 uppercase tracking-tight">
+                {lastAdded ? "ITEM ADDED" : label || "SHOPPING"}
+              </h2>
+            </div>
+            <div className="text-2xl font-mono font-bold text-white/20">
+              {items.length.toString().padStart(2, "0")}
+            </div>
           </div>
 
-          {/* Progress bar that fills when a new item was just added */}
-          <div className="h-1 w-full bg-black/20 rounded-full mt-1 overflow-hidden">
-            <div
-              className={`h-full transition-all duration-1000 ease-linear ${lastAdded ? "bg-red-500 w-full" : "bg-white/80"}`}
-              style={{ width: lastAdded ? "100%" : "0%" }}
-            />
-          </div>
-
-          <ul className="w-full mt-3 mb-2">
+          {/* List Content */}
+          <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
             {items.length === 0 ? (
-              <li className="text-white/40 italic text-center">No elements</li>
+              <div className="py-8 text-center text-white/30 text-sm italic font-medium">
+                Your list is empty
+              </div>
             ) : (
               items.map((item, index) => (
-                <li
+                <div
                   key={item.id}
-                  className="flex justify-between items-center py-1"
+                  className="flex justify-between items-center p-3 bg-black/20 rounded-xl border border-white/5 hover:bg-white/5 transition-colors"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-white/60 text-sm w-5 text-right">
-                      {index + 1}.
+                  <div className="flex items-center gap-3">
+                    <span className="text-white/20 font-mono text-xs font-bold w-4">
+                      {index + 1}
                     </span>
-                    <span className="text-white">
+                    <span className="text-white font-medium text-sm capitalize">
                       {item.label}
-                      {item.quantity != null && (
-                        <span className="text-sm text-white/60 ml-2">
-                          × {item.quantity}
-                        </span>
-                      )}
                     </span>
                   </div>
-                </li>
+                  {item.quantity && item.quantity > 1 && (
+                    <span className="px-2 py-1 bg-white/10 rounded-md text-[10px] font-mono text-white/70 font-bold">
+                      x{item.quantity}
+                    </span>
+                  )}
+                </div>
               ))
             )}
-          </ul>
+          </div>
         </div>
       </Html>
     </group>
