@@ -13,39 +13,6 @@ type Props = {
 };
 
 // --- HELPER FUNCTIONS ---
-function formatIngredient(ing: IngredientDetailed, isExtra: boolean) {
-  const hasQty = ing.quantity !== undefined && ing.unit;
-  const base = hasQty ? `${ing.quantity} ${ing.unit} ${ing.name}` : ing.name;
-  return base;
-}
-
-function getPreviewIngredients(recipe: SingleRecipe) {
-  const {
-    ingredientsDetailed = [],
-    ingredientsYouHave = [],
-    ingredientsMissing = [],
-  } = recipe;
-
-  const haveNames =
-    ingredientsDetailed.length > 0
-      ? ingredientsDetailed
-          .filter((i) => i.fromUserIngredients)
-          .map((i) => i.name)
-      : ingredientsYouHave;
-
-  const extraNames =
-    ingredientsDetailed.length > 0
-      ? ingredientsDetailed
-          .filter((i) => !i.fromUserIngredients)
-          .map((i) => i.name)
-      : ingredientsMissing;
-
-  return {
-    havePreview: haveNames.slice(0, 3).join(", "),
-    extraPreview: extraNames.slice(0, 2).join(", "),
-  };
-}
-
 export function SuggestRecipe({ data }: Props) {
   const { setSuggestion, setSelectedSuggestionIndex } = useCookingState();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -66,10 +33,10 @@ export function SuggestRecipe({ data }: Props) {
       setSelectedSuggestionIndex(null);
       return;
     }
-    if (data.selectedRecipeTitle) {
-      const target = data.selectedRecipeTitle.toLowerCase();
+    if (data.selectedTitle) {
+      const target = data.selectedTitle.toLowerCase();
       const idx = data.recipes.findIndex(
-        (r) => r.recipeTitle && r.recipeTitle.toLowerCase().includes(target),
+        (r) => r.title && r.title.toLowerCase().includes(target),
       );
       if (idx >= 0) {
         setSelectedIndex(idx);
@@ -86,76 +53,64 @@ export function SuggestRecipe({ data }: Props) {
 
   const recipes = data.recipes;
 
-  // ===========================================================================
-  // SCREEN 1: LIST VIEW (OVERVIEW) - CENTERED GRID
-  // ===========================================================================
+  // SCREEN 1: OVERVIEW
   if (selectedIndex === null) {
     return (
-      // POSIZIONE: Centrale [0, 0, -1.5]
+      // Position: Centered in front of user
       <group position={[0, 0, -1.5]}>
         <Html transform occlude center scale={0.4}>
-          <div className="bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl w-[1000px] max-w-[95vw] flex flex-col gap-6">
+          <div className="bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 shadow-2xl min-w-[400px] w-fit max-w-[600px] flex flex-col gap-6">
             {/* Header */}
             <header className="flex justify-between items-end border-b border-white/10 pb-4">
               <div>
                 <span className="text-[11px] text-white/40 font-bold tracking-[0.2em] uppercase mb-1 block">
                   COOKING ASSISTANT
                 </span>
-                <h2 className="text-4xl font-black text-orange-500 tracking-tight leading-none">
+                <h2 className="text-3xl font-black text-orange-500 tracking-tight leading-none">
                   SUGGESTIONS
                 </h2>
               </div>
             </header>
 
-            {/* Grid Container - NO SCROLLBAR, FLEX WRAP */}
-            <div className="flex flex-wrap gap-4 justify-center items-stretch">
+            {/* Vertical Stack Container */}
+            <div className="flex flex-col gap-3">
               {recipes.map((r, idx) => {
-                const { havePreview, extraPreview } = getPreviewIngredients(r);
                 return (
                   <div
                     key={idx}
-                    className="flex-1 min-w-[220px] max-w-[48%] bg-black/40 border border-white/10 rounded-2xl p-5 flex flex-col justify-between hover:bg-white/5 transition-colors group"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 flex items-center justify-between hover:bg-white/5 transition-colors group"
                   >
-                    <div>
-                      <div className="flex justify-between items-start mb-3">
-                        <span className="text-orange-500/80 font-mono text-xs font-bold bg-orange-500/10 px-2 py-1 rounded-md">
-                          #{idx + 1}
-                        </span>
-                        <div className="flex gap-2 text-[10px] text-white/40 font-bold uppercase tracking-wide">
+                    {/* Left: Index & Info */}
+                    <div className="flex items-center gap-4">
+                      {/* Badge Number */}
+                      <span className="text-orange-500/80 font-mono text-lg font-bold bg-orange-500/10 px-3 py-1.5 rounded-lg">
+                        #{idx + 1}
+                      </span>
+
+                      {/* Title & Stats */}
+                      <div className="flex flex-col">
+                        <h3 className="text-lg font-bold text-white leading-tight line-clamp-1 group-hover:text-orange-400 transition-colors">
+                          {r.title}
+                        </h3>
+
+                        <div className="flex gap-3 text-[10px] text-white/40 font-bold uppercase tracking-wide mt-1">
                           {r.estimatedTimeMinutes && (
-                            <span>{r.estimatedTimeMinutes}M</span>
+                            <span className="flex items-center gap-1">
+                              ⏱ {r.estimatedTimeMinutes} MIN
+                            </span>
                           )}
-                          {r.difficulty && <span>• {r.difficulty}</span>}
+                          {r.difficulty && (
+                            <span className="flex items-center gap-1">
+                              ⚡ {r.difficulty}
+                            </span>
+                          )}
                         </div>
                       </div>
-
-                      {/* TITOLO: Break words per evitare overflow */}
-                      <h3 className="text-xl font-bold text-white leading-tight mb-3 line-clamp-2 break-words group-hover:text-orange-400 transition-colors">
-                        {r.recipeTitle}
-                      </h3>
                     </div>
 
-                    <div className="space-y-2 pt-3 border-t border-white/5">
-                      {havePreview && (
-                        <div>
-                          <span className="text-[9px] text-green-400/60 font-bold uppercase tracking-widest block mb-0.5">
-                            YOU HAVE
-                          </span>
-                          <p className="text-xs text-white/80 leading-relaxed line-clamp-2 break-words capitalize">
-                            {havePreview}
-                          </p>
-                        </div>
-                      )}
-                      {extraPreview && (
-                        <div>
-                          <span className="text-[9px] text-red-400/60 font-bold uppercase tracking-widest block mb-0.5">
-                            MISSING
-                          </span>
-                          <p className="text-xs text-red-300/80 leading-relaxed line-clamp-1 break-words capitalize">
-                            {extraPreview}
-                          </p>
-                        </div>
-                      )}
+                    {/* Right: Arrow Indicator */}
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-white/20">
+                      →
                     </div>
                   </div>
                 );
@@ -167,12 +122,10 @@ export function SuggestRecipe({ data }: Props) {
     );
   }
 
-  // ===========================================================================
-  // SCREEN 2: DETAIL VIEW (BIG DASHBOARD) - CENTERED
-  // ===========================================================================
+  // SCREEN 2: DETAIL VIEW
   const selectedRecipe = recipes[Math.min(selectedIndex, recipes.length - 1)];
   const {
-    recipeTitle,
+    title,
     ingredientsYouHave = [],
     ingredientsMissing = [],
     ingredientsDetailed = [],
@@ -199,7 +152,7 @@ export function SuggestRecipe({ data }: Props) {
               SELECTED RECIPE
             </span>
             <h1 className="text-5xl font-black text-orange-500 leading-tight mb-6 tracking-tight break-words">
-              {recipeTitle}
+              {title}
             </h1>
 
             <div className="flex gap-4 mb-8">

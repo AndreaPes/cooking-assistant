@@ -35,6 +35,7 @@ export default function ARScene() {
     startTimer,
     removeTimerById,
     clearAllTimers,
+    stopCooking,
   } = useCookingState();
 
   const { status, setStatus } = useAssistantState();
@@ -88,17 +89,27 @@ export default function ARScene() {
     if (isListening) setStatus(AssistantStatus.LISTENING);
   }, [isListening, setStatus]);
 
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Trigger processing on silence detection
   useEffect(() => {
-    if (!isListening && transcript) {
-      if (transcript !== lastProcessedText.current) {
-        if (!isProcessingRef.current) {
-          console.log("🎤 Processing transcript:", transcript);
-          lastProcessedText.current = transcript;
-          processVoice().catch(console.error);
-        } else {
-          console.warn("Ignored double trigger for: ", transcript);
+    if (!isListening && transcript && !isProcessingRef.current) {
+      const cleanTranscript = transcript.trim();
+
+      if (cleanTranscript !== lastProcessedText.current) {
+        setStatus(AssistantStatus.PROCESSING);
+
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
         }
+
+        debounceTimerRef.current = setTimeout(() => {
+          if (!isProcessingRef.current) {
+            console.log("🎤 DEBOUNCED TRIGGER:", cleanTranscript);
+            lastProcessedText.current = cleanTranscript;
+            processVoice(cleanTranscript);
+          }
+        }, 500);
       }
     }
   }, [isListening, transcript]);
@@ -108,8 +119,8 @@ export default function ARScene() {
    * Captures the current application state (Fridge, Recipes, Timers) and sends it
    * to the AI backend to determine the user's intent.
    */
-  const processVoice = async () => {
-    if (!transcript) return;
+  const processVoice = async (textToProcess: string) => {
+    if (!textToProcess) return;
 
     isProcessingRef.current = true;
     setStatus(AssistantStatus.PROCESSING);
@@ -118,6 +129,7 @@ export default function ARScene() {
     try {
       const freshState = useCookingState.getState();
       const freshFridge = useFridgeInventoryState.getState().fridgeItems;
+      const freshShopping = useShoppingState.getState().items;
 
       let previewRecipe = null;
       if (
@@ -130,14 +142,15 @@ export default function ARScene() {
       }
 
       const payload = {
-        userSpeech: transcript,
+        userSpeech: textToProcess,
         activeTimers: freshState.activeTimers,
         fridgeItems: freshFridge ?? [],
+        shoppingList: freshShopping ?? [],
         currentRecipes: freshState.suggestion?.recipes || [],
         selectedRecipe: previewRecipe,
         activeRecipe: freshState.activeRecipe
           ? {
-              title: freshState.activeRecipe.recipeTitle,
+              title: freshState.activeRecipe.title,
               steps: freshState.activeRecipe.steps,
               currentStepIndex: freshState.currentStepIndex,
             }
@@ -158,8 +171,8 @@ export default function ARScene() {
       setToastMessage("Connection Error");
       setTimeout(() => setToastMessage(null), 3000);
     } finally {
-      setStatus(AssistantStatus.IDLE);
       setTimeout(() => {
+        setStatus(AssistantStatus.IDLE);
         isProcessingRef.current = false;
       }, 500);
     }
@@ -189,6 +202,9 @@ export default function ARScene() {
 
     // 2. NAVIGATE STEPS
     if (intentType === "NAVIGATE") {
+      setAiState(null);
+      setSuggestion(null);
+
       const dir = action.direction?.toLowerCase();
       const target = action.target;
 
@@ -211,8 +227,12 @@ export default function ARScene() {
         const steps = updatedState.activeRecipe?.steps;
 
         if (updatedState.activeRecipe && steps && newIndex === steps.length) {
-          setToastMessage("Recipe Completed! 🎉");
-          setTimeout(() => setToastMessage(null), 4000);
+          setToastMessage("Recipe Completed!");
+          setTimeout(() => {
+            setToastMessage(null);
+            stopCooking();
+            console.log("🧹 Recipe state cleared.");
+          }, 4000);
         } else if (steps && steps[newIndex])
           checkAndSpawnTimer(steps[newIndex]);
       }, 50);
@@ -236,7 +256,7 @@ export default function ARScene() {
       const newData = {
         ...incomingData,
         recipes: recipesToSet,
-        selectedRecipeTitle: incomingData.selectedRecipeTitle,
+        selectedTitle: incomingData.selectedTitle,
       };
 
       setAiState({ type: "suggest_recipe", data: newData });
@@ -270,8 +290,6 @@ export default function ARScene() {
       // CASE D: STOP ALL
       else if (action.action === "stop_all") {
         clearAllTimers();
-        setToastMessage("All timers cleared");
-        setTimeout(() => setToastMessage(null), 3000);
       }
       return;
     }
@@ -299,6 +317,11 @@ export default function ARScene() {
       else if (action.action === "clear") {
         await clearShopList();
         setToastMessage("Shopping list cleared");
+      }
+
+      // HIDE
+      else if (action.action === "hide") {
+        setAiState(null);
       }
       setTimeout(() => setToastMessage(null), 3000);
       return;
@@ -333,15 +356,12 @@ export default function ARScene() {
       // Manual Voice Add
       else if (action.action === "add_manual" && action.items) {
         addFridgeItems(action.items);
-        const count = action.items.length;
-        setToastMessage(`Added ${count} ${count === 1 ? "item" : "items"}`);
         const updatedList = useFridgeInventoryState.getState().fridgeItems;
 
         setAiState({
           type: "fridge_inventory",
           data: { fridgeItems: updatedList },
         });
-        setTimeout(() => setToastMessage(null), 3000);
       }
 
       // Hide Inventory
@@ -369,16 +389,24 @@ export default function ARScene() {
       // Clear Inventory
       else if (action.action === "clear") {
         clearFridgeInventory();
-
-        setToastMessage("Inventory cleared 🗑️");
         setAiState({
           type: "fridge_inventory",
           data: { fridgeItems: [] },
         });
-        setTimeout(() => setToastMessage(null), 2000);
       }
 
       return;
+    }
+
+    // 7, GENERIC QUERY
+    if (intentType === "QUERY") {
+      if (action.answer) {
+        setAiState({
+          type: "instruction",
+          data: { text: action.answer },
+        });
+        setTimeout(() => setAiState(null), 9000);
+      }
     }
 
     // Fallback UI

@@ -12,12 +12,6 @@ export type InterfaceType =
   | "suggest_recipe"
   | "step_guide";
 
-export interface StepTimer {
-  stepIndex: number;
-  minutes: number;
-  label: string;
-}
-
 export interface IngredientDetailed {
   name: string;
   quantity: number;
@@ -25,9 +19,6 @@ export interface IngredientDetailed {
   fromUserIngredients: boolean;
 }
 
-/**
- * Definizione di uno Step Atomico (Generato dall'AI)
- */
 export interface AtomicStep {
   id: string;
   actionVerb: string;
@@ -39,7 +30,7 @@ export interface AtomicStep {
 }
 
 export interface SingleRecipe {
-  recipeTitle?: string;
+  title?: string;
   ingredientsYouHave?: string[];
   ingredientsMissing?: string[];
   ingredientsDetailed?: IngredientDetailed[];
@@ -52,7 +43,7 @@ export interface SingleRecipe {
 
 export interface RecipeSuggestionData {
   recipes?: SingleRecipe[];
-  selectedRecipeTitle?: string;
+  selectedTitle?: string;
 }
 
 export interface AIResponse {

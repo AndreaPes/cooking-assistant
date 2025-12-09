@@ -15,3 +15,7 @@
 
 ## Computer Vision
 - [ ] **Visual Trigger:** Allow the AI to auto-progress steps when it "sees" a specific action (e.g., water boiling).
+
+quando viene chiamata una query deve tornare alla interfaccia che era mostrata prima della query
+aggiungere indicazione in una ricetta se un item mancante e' gia' nella lista della spesa
+colore processing non rimane tutto il tempo del processo ma torna subito bianco
