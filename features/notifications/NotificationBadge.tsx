@@ -37,8 +37,8 @@ export function NotificationBadge({ label, variant = "success" }: BadgeProps) {
   const s = styles[variant];
 
   return (
-    <group position={[0, 0.8, -1.5]}>
-      <Html transform occlude center>
+    <group position={[0, 4, -1]}>
+      <Html transform occlude center scale={0.2}>
         <div
           className={`
             flex items-center gap-4 px-8 py-4 rounded-full border backdrop-blur-xl shadow-2xl transition-all duration-500 ease-out
