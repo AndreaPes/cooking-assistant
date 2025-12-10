@@ -447,5 +447,6 @@ export function useCookingAssistant(
     aiState,
     toastMessage,
     handleMicClick,
+    processVoice,
   };
 }
