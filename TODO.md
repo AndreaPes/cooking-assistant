@@ -22,12 +22,12 @@ These are the immediate fixes required to improve stability and UX based on rece
     - *Goal:* Ensure status stays `PROCESSING` (Yellow) until the *entire* action (API call + UI update) is complete.
     - *Metrics:* Complexity: 🟢 | Feasibility: ⭐
 
-- [ ] **Interface State Restoration**
+- [X] **Interface State Restoration**
     - *Issue:* Asking a generic question (Query) closes the current view (e.g., Fridge/Recipe), resetting to default.
     - *Goal:* Store `previousInterface` in Zustand. When closing an InfoPanel, restore the exact previous view.
     - *Metrics:* Complexity: 🟡 | Feasibility: ⭐
 
-- [ ] **Shopping List Cross-Reference**
+- [X] **Shopping List Cross-Reference**
     - *Issue:* Missing ingredients in a recipe are marked red even if they are already in the Shopping List.
     - *Goal:* In `SuggestRecipe`, check `ingredientsMissing` against `useShoppingState`. If item exists, show a distinct
       icon (e.g., "In Cart" 🛒) instead of "Missing".

@@ -2,12 +2,12 @@ import { AIResponse } from "@/types/interfaces";
 import { useCookingState } from "@/state/cookingState";
 
 // --- FEATURE COMPONENTS ---
-import { Timer } from "@/features/timer/Timer";
-import { StepGuide } from "@/features/step-guide/StepGuide";
-import { ShoppingList } from "@/features/shopping_list/ShoppingList";
-import { NotificationBadge } from "@/features/notifications/NotificationBadge";
-import { FridgeInventory } from "@/features/fridge-inventory/FridgeInventory";
-import { SuggestRecipe } from "@/features/suggest_recipe/SuggestRecipe";
+import { Timer } from "@/features/cooking/timer/Timer";
+import { StepGuide } from "@/features/cooking/steps/StepGuide";
+import { ShoppingList } from "@/features/shopping/ShoppingList";
+import { NotificationBadge } from "@/components/hud/NotificationBadge";
+import { FridgeInventory } from "@/features/fridge/FridgeInventory";
+import { SuggestRecipe } from "@/features/cooking/recipes/SuggestRecipe";
 import { InfoPanel } from "@/components/InfoPanel";
 
 interface ManagerProps {

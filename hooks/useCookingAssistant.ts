@@ -5,7 +5,7 @@ import { useCookingState } from "@/state/cookingState";
 import { AssistantStatus, useAssistantState } from "@/state/assistantState";
 import { useFridgeInventoryState } from "@/state/slices/fridgeInventorySlice";
 import { useShoppingState } from "@/state/shoppingState";
-import { detectIngredientsFromImage } from "@/features/fridge-inventory/detectIngredients";
+import { detectIngredientsFromImage } from "@/features/fridge/detectIngredients";
 import { AIResponse, AtomicStep } from "@/types/interfaces";
 
 /**
@@ -58,7 +58,8 @@ export function useCookingAssistant(
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // --- Voice & Refs ---
-  const { isListening, transcript, startListening } = useVoiceInput();
+  const { isListening, transcript, startListening, stopListening } =
+    useVoiceInput();
   const { detected: wakeWordDetected } = useWakeWord();
 
   const lastProcessedText = useRef("");
@@ -73,6 +74,8 @@ export function useCookingAssistant(
   /**
    * Automatically spawns a timer if a recipe step requires it.
    * Timers are created in 'idle' mode, waiting for user confirmation.
+   *
+   * @param step - The current cooking step being displayed.
    */
   const checkAndSpawnTimer = (step: AtomicStep) => {
     if (step && step.timerSeconds && step.timerSeconds > 0) {
@@ -86,6 +89,9 @@ export function useCookingAssistant(
 
   /**
    * Routes the structured AI response (Intent) to the specific state actions.
+   * Handles UI updates, state mutations, and user feedback (Toasts).
+   *
+   * @param action - The JSON object returned by the AI API containing intent and parameters.
    */
   const handleAIResponse = async (action: any) => {
     const intentType = action.intent || action.type || action.interface;
@@ -196,18 +202,15 @@ export function useCookingAssistant(
       if (action.action === "add") {
         await addShopItem(label, action.quantity || 1);
         setToastMessage(`Added ${label}`);
-        setAiState({ type: "shopping_list", data: { label: "Shopping List" } });
       } else if (action.action === "show") {
         await showShopList();
         setAiState({ type: "shopping_list", data: { label: "Shopping List" } });
       } else if (action.action === "remove") {
         await removeShopItem(label);
         setToastMessage(`Removed: ${label}`);
-        setAiState({ type: "shopping_list", data: { label: "Shopping List" } });
       } else if (action.action === "clear") {
         await clearShopList();
         setToastMessage("Shopping list cleared");
-        setAiState({ type: "shopping_list", data: { label: "Shopping List" } });
       } else if (action.action === "hide") {
         setAiState(null);
       }
@@ -218,7 +221,7 @@ export function useCookingAssistant(
 
     // 6. FRIDGE INVENTORY
     if (intentType === "FRIDGE_INVENTORY") {
-      // A. Visual Scan
+      // A. Visual Scan (Analyzes camera feed)
       if (action.action === "scan" && videoRef.current) {
         setToastMessage("📸 Analyzing Fridge...");
         const newScannedItems = await detectIngredientsFromImage(
@@ -228,6 +231,7 @@ export function useCookingAssistant(
         if (newScannedItems.length > 0) {
           addFridgeItems(newScannedItems);
           const updatedList = useFridgeInventoryState.getState().fridgeItems;
+          // Scan always forces the list to open to show results
           setAiState({
             type: "fridge_inventory",
             data: { fridgeItems: updatedList },
@@ -242,41 +246,72 @@ export function useCookingAssistant(
       // B. Manual Add
       else if (action.action === "add_manual" && action.items) {
         addFridgeItems(action.items);
-        const updatedList = useFridgeInventoryState.getState().fridgeItems;
-        setAiState({
-          type: "fridge_inventory",
-          data: { fridgeItems: updatedList },
-        });
+        const names = action.items.map((i: any) => i.name).join(", ");
+        setToastMessage(`Added: ${names}`);
+
+        if (aiState?.type === "fridge_inventory") {
+          const updatedList = useFridgeInventoryState.getState().fridgeItems;
+          setAiState({
+            type: "fridge_inventory",
+            data: { fridgeItems: updatedList },
+          });
+        }
+
+        setTimeout(() => setToastMessage(null), 3000);
       }
 
       // C. Manual Remove
       else if (action.action === "remove_manual" && action.items) {
         removeFridgeItems(action.items);
-        const freshList = useFridgeInventoryState.getState().fridgeItems;
-        setToastMessage(`Removed items`);
-        setAiState({
-          type: "fridge_inventory",
-          data: { fridgeItems: [...freshList] },
-        });
+        const names = action.items.map((i: any) => i.name).join(", ");
+        setToastMessage(`Removed: ${names}`);
+
+        if (aiState?.type === "fridge_inventory") {
+          const updatedList = useFridgeInventoryState.getState().fridgeItems;
+          setAiState({
+            type: "fridge_inventory",
+            data: { fridgeItems: updatedList },
+          });
+        }
+
         setTimeout(() => setToastMessage(null), 3000);
       }
 
-      // D. Clear / Hide
-      else if (action.action === "clear") {
-        clearFridgeInventory();
-        setAiState({ type: "fridge_inventory", data: { fridgeItems: [] } });
-      } else if (action.action === "hide") {
+      // D. Show UI
+      else if (action.action === "show") {
+        const currentList = useFridgeInventoryState.getState().fridgeItems;
+        setAiState({
+          type: "fridge_inventory",
+          data: { fridgeItems: currentList },
+        });
+        setToastMessage("Opening Fridge Inventory");
+        setTimeout(() => setToastMessage(null), 2000);
+      }
+
+      // E. Hide UI
+      else if (action.action === "hide") {
         setAiState(null);
         setToastMessage("Inventory hidden");
+        setTimeout(() => setToastMessage(null), 2000);
+      }
+
+      // F. Clear All
+      else if (action.action === "clear") {
+        clearFridgeInventory();
+        setToastMessage("Fridge cleared");
+        if (aiState?.type === "fridge_inventory") {
+          setAiState({ type: "fridge_inventory", data: { fridgeItems: [] } });
+        }
         setTimeout(() => setToastMessage(null), 2000);
       }
       return;
     }
 
-    // 7. GENERIC QUERY
+    // 7. GENERIC QUERY (with State Restoration)
     if (intentType === "QUERY") {
       if (action.answer) {
         setAiState((currentState) => {
+          // Save current state before overwriting with instruction
           if (currentState?.type !== "instruction") {
             previousInterfaceRef.current = currentState;
           }
@@ -286,6 +321,10 @@ export function useCookingAssistant(
             data: { text: action.answer },
           };
         });
+
+        // Estimate reading time based on word count (min 3s, max 15s)
+        const wordCount = action.answer.split(" ").length;
+        const readingTime = Math.max(3000, Math.min(15000, wordCount * 350));
 
         setTimeout(() => {
           setAiState((current) => {
@@ -297,12 +336,12 @@ export function useCookingAssistant(
             }
             return current;
           });
-        }, 9000);
+        }, readingTime);
       }
       return;
     }
 
-    // Fallback
+    // Fallback for unknown interfaces
     if (action.interface || action.type) {
       setAiState({
         type: (action.type ?? action.interface) as AIResponse["type"],
@@ -317,6 +356,9 @@ export function useCookingAssistant(
 
   /**
    * Main Logic: Sends the user speech + current context to the API.
+   * Handles loading states and errors.
+   *
+   * @param textToProcess - The transcribed text from the voice input.
    */
   const processVoice = async (textToProcess: string) => {
     if (!textToProcess) return;
@@ -326,7 +368,7 @@ export function useCookingAssistant(
     console.log("Processing Request:", textToProcess);
 
     try {
-      // Capture Fresh State Snapshots
+      // Capture Fresh State Snapshots for the AI Context
       const freshState = useCookingState.getState();
       const freshFridge = useFridgeInventoryState.getState().fridgeItems;
       const freshShopping = useShoppingState.getState().items;
@@ -373,7 +415,7 @@ export function useCookingAssistant(
       setToastMessage("Connection Error");
       setTimeout(() => setToastMessage(null), 3000);
     } finally {
-      // Delayed release to prevent "white flash"
+      // Delayed release to prevent "white flash" of the mic icon
       setTimeout(() => {
         setStatus(AssistantStatus.IDLE);
         isProcessingRef.current = false;
@@ -386,7 +428,7 @@ export function useCookingAssistant(
   // EFFECTS
   // ===========================================================================
 
-  // 1. Wake Word Trigger
+  // 1. Wake Word Trigger Logic
   useEffect(() => {
     if (
       wakeWordDetected &&
@@ -432,12 +474,26 @@ export function useCookingAssistant(
   // UI HANDLERS
   // ===========================================================================
 
+  /**
+   * Manually toggles the microphone.
+   * - If IDLE: Starts listening.
+   * - If LISTENING: Stops listening immediately.
+   * - If PROCESSING: Ignores click (to prevent interrupting API calls).
+   */
   const handleMicClick = useCallback(() => {
-    if (status === AssistantStatus.PROCESSING || isListening) return;
-    lastProcessedText.current = "";
-    setStatus(AssistantStatus.LISTENING);
-    startListening();
-  }, [status, isListening, startListening, setStatus]);
+    if (status === AssistantStatus.PROCESSING) return;
+
+    if (isListening) {
+      stopListening();
+      setStatus(AssistantStatus.IDLE);
+      console.log("🛑 Mic stopped manually");
+    } else {
+      lastProcessedText.current = "";
+      setStatus(AssistantStatus.LISTENING);
+      startListening();
+      console.log("🎙️ Mic started manually");
+    }
+  }, [status, isListening, startListening, stopListening, setStatus]);
 
   // Return everything needed by the Presentation Component
   return {

@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { FRIDGE_TOOLS } from "@/features/fridge-inventory/fridge.tools";
-import { SHOPPING_TOOLS } from "@/features/shopping_list/shopping.tools";
-import { RECIPE_TOOLS } from "@/features/suggest_recipe/recipe.tools";
-import { COOKING_TOOLS } from "@/features/step-guide/step.tools";
+import { FRIDGE_TOOLS } from "@/features/fridge/fridge.tools";
+import { SHOPPING_TOOLS } from "@/features/shopping/shopping.tools";
+import { RECIPE_TOOLS } from "@/features/cooking/recipes/recipe.tools";
+import { COOKING_TOOLS } from "@/features/cooking/steps/step.tools";
 
 /**
  * AI Tools Integrity Test Suite

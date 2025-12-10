@@ -33,3 +33,14 @@ html, body {
   -webkit-user-select: none;
   touch-action: none; /* Prevents browser zoom/pan gestures */
 }
+
+canvas {
+  touch-action: none;
+  outline: none;
+  --webkit-tap-highlight-color: transparent;
+}
+
+video {
+  pointer-events: none;
+  object-fit: cover;
+}

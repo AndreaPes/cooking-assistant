@@ -188,7 +188,7 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
 
   return (
     <group position={[0, 0, -1.5]}>
-      <Html transform occlude center scale={0.4}>
+      <Html transform occlude center scale={0.25}>
         <div className="w-[1000px] bg-gray-900/90 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-10 flex gap-10 shadow-[0_0_80px_rgba(0,0,0,0.8)] animate-in zoom-in duration-300 max-w-[95vw]">
           {/* Display Title, Time, Difficulty, and Voice Command Hint */}
           <div className="flex-1 flex flex-col">

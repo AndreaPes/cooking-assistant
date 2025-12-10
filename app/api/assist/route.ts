@@ -77,9 +77,6 @@ export async function POST(req: Request) {
       ? `COOKING NOW: "${activeRecipe.title}" (Step ${activeRecipe.currentStepIndex + 1})`
       : "NOT COOKING";
 
-    // Debug logging for server-side visibility
-    console.log("CONTEXT CHECK:", activeRecipeContext);
-
     const previewContext = selectedRecipe
       ? `PREVIEWING RECIPE: "${selectedRecipe.title}"`
       : "NO RECIPE SELECTED";
@@ -116,6 +113,7 @@ export async function POST(req: Request) {
       - NAVIGATION: If the context shows a recipe is ACTIVE (Cooking Now), interpret "Next", "Back", or "Repeat" as 'navigate_steps', NOT as generic chat.
       - SAFETY: When generating steps, be paranoid about safety. Always flag hot items or raw meat in the 'warning' field.
       - SHOPPING vs FRIDGE: Distinguish carefully between "I have" (Fridge Inventory) and "I need/buy" (Shopping List).
+      - DATA EXTRACTION: When the user mentions multiple items (e.g. "butter and potatoes"), you MUST include ALL of them in the tool call's 'items' array. NEVER truncate the list.
       - LISTS: Never read the Shopping List or Recipe List aloud. Always use the corresponding TOOL ('manage_shopping_list' with action='show', or 'generate_recipe_ideas') to display the UI.
       - VISION: If the user says "Scan", "Look", or "See what I have", ALWAYS use 'manage_fridge_inventory' with action='scan'. Do not say "I cannot see", just trigger the tool.
       - GENERAL: Only use text replies (QUERY) for general knowledge questions (e.g. "Calories in egg?"). KEEP ANSWERS EXTREMELY CONCISE (Max 1-2 sentences). Be direct, no conversational filler or fluff.   
