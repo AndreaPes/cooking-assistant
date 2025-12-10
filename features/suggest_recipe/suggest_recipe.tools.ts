@@ -1,3 +1,11 @@
+/**
+ * AI Tool Definitions for Recipe Discovery and Selection.
+ *
+ * This collection enables the Assistant to:
+ * 1. Generate recipe ideas based on the user's inventory or requests.
+ * 2. Select a specific recipe to view details.
+ * 3. Close the recipe preview.
+ */
 export const RECIPE_TOOLS = [
   // Tool 1: Generate Ideas
   {

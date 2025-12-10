@@ -1,3 +1,10 @@
+/**
+ * AI Tool Definition for managing the Shopping List.
+ *
+ * This tool empowers the Assistant to ADD, REMOVE, SHOW, or HIDE items
+ * from the shopping list. It enforces strict separation between "Fridge" (Inventory)
+ * and "Shopping" (To-Buy List) logic.
+ */
 export const SHOPPING_TOOLS = [
   {
     type: "function",

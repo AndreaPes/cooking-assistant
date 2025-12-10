@@ -1,4 +1,4 @@
-# 🍳 Cooking Assistant - Roadmap & Todo
+# Cooking Assistant - Roadmap & Todo
 
 ## 📌 Legend
 

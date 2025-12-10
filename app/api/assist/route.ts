@@ -7,8 +7,27 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+/**
+ * Main API Route for the AR Cooking Assistant.
+ *
+ * This endpoint acts as the central "Brain" of the application.
+ * It follows a stateless Request/Response pattern where the frontend sends
+ * the current full state of the application (timers, inventory, recipes) along with
+ * the user's voice command.
+ *
+ * The route uses OpenAI's GPT-4o-mini model with Function Calling (Tools) to:
+ * 1. Analyze the user's intent based on the provided context.
+ * 2. Select the appropriate tool to manipulate the state (e.g., start a timer, find a recipe).
+ * 3. Enforce strict behavioral rules defined in the System Prompt.
+ *
+ * @param req - The incoming HTTP request containing the JSON payload with `userSpeech` and app state snapshots.
+ * @returns A JSON response containing the determined `intent` and specific action data for the frontend.
+ */
 export async function POST(req: Request) {
   try {
+    // -------------------------------------------------------------------------
+    // 1. PAYLOAD EXTRACTION
+    // -------------------------------------------------------------------------
     const {
       userSpeech,
       activeTimers,
@@ -19,7 +38,11 @@ export async function POST(req: Request) {
       selectedRecipe = null,
     } = await req.json();
 
-    // --- CONTEXT BUILDING ---
+    // -------------------------------------------------------------------------
+    // 2. CONTEXT BUILDING
+    // -------------------------------------------------------------------------
+    // Converts raw JSON state arrays into human-readable strings for the LLM.
+    // This allows the AI to "see" what the user sees in the AR interface.
 
     const timerContextString =
       activeTimers && activeTimers.length > 0
@@ -31,7 +54,7 @@ export async function POST(req: Request) {
             .join("\n")
         : "NONE";
 
-    const fridgeListString =
+    const fridgeContextString =
       fridgeItems && fridgeItems.length > 0
         ? fridgeItems
             .map((i: any) => `${i.quantity ?? 1}x ${i.name}`)
@@ -45,7 +68,7 @@ export async function POST(req: Request) {
             .join(", ")
         : "EMPTY";
 
-    const recipesListString =
+    const recipesContextString =
       currentRecipes && currentRecipes.length > 0
         ? currentRecipes.map((r: any) => `"${r.title}"`).join(", ")
         : "NONE";
@@ -54,6 +77,7 @@ export async function POST(req: Request) {
       ? `COOKING NOW: "${activeRecipe.title}" (Step ${activeRecipe.currentStepIndex + 1})`
       : "NOT COOKING";
 
+    // Debug logging for server-side visibility
     console.log("CONTEXT CHECK:", activeRecipeContext);
 
     const previewContext = selectedRecipe
@@ -62,15 +86,20 @@ export async function POST(req: Request) {
 
     console.log(`🎤 User: "${userSpeech}"`);
 
-    // --- SYSTEM PROMPT ---
+    // -------------------------------------------------------------------------
+    // 3. SYSTEM PROMPT DEFINITION
+    // -------------------------------------------------------------------------
+    // Injects the Persona, the Context, and the Critical Behavioral Rules.
+    // This ensures the AI acts as a functional controller rather than a chatty bot.
+
     const systemPrompt = `
       You are an expert AR Cooking Assistant.
       
       CURRENT CONTEXT:
       - Active Timers: ${timerContextString}
-      - Fridge Inventory: ${fridgeListString}
-        - Shopping List: ${shoppingContextString}
-      - Visible Recipe Suggestions: ${recipesListString}
+      - Fridge Inventory: ${fridgeContextString}
+      - Shopping List: ${shoppingContextString}
+      - Visible Recipe Suggestions: ${recipesContextString}
       - ${activeRecipeContext}
       - ${previewContext}
       
@@ -89,11 +118,12 @@ export async function POST(req: Request) {
       - SHOPPING vs FRIDGE: Distinguish carefully between "I have" (Fridge Inventory) and "I need/buy" (Shopping List).
       - LISTS: Never read the Shopping List or Recipe List aloud. Always use the corresponding TOOL ('manage_shopping_list' with action='show', or 'generate_recipe_ideas') to display the UI.
       - VISION: If the user says "Scan", "Look", or "See what I have", ALWAYS use 'manage_fridge_inventory' with action='scan'. Do not say "I cannot see", just trigger the tool.
-      - INVENTORY: Carefully distinguish "I have" (Fridge) vs "I need" (Shopping).
-      - GENERAL: Only use text replies (QUERY) for general knowledge questions (e.g. "How many calories in an egg?"). For everything else, USE A TOOL.
+      - GENERAL: Only use text replies (QUERY) for general knowledge questions (e.g. "Calories in egg?"). KEEP ANSWERS EXTREMELY CONCISE (Max 1-2 sentences). Be direct, no conversational filler or fluff.   
     `;
 
-    // --- OPENAI CALL WITH TOOLS ---
+    // -------------------------------------------------------------------------
+    // 4. OPENAI COMPLETION
+    // -------------------------------------------------------------------------
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -102,12 +132,16 @@ export async function POST(req: Request) {
       ],
       tools: ALL_TOOLS,
       tool_choice: "auto",
-      temperature: 0,
+      temperature: 0, // Deterministic output
     });
 
     const message = response.choices[0].message;
 
-    // --- RESPONSE HANDLING ---
+    // -------------------------------------------------------------------------
+    // 5. INTENT MAPPING
+    // -------------------------------------------------------------------------
+    // Maps the AI's tool call to a specific frontend Intent string.
+
     if (message.tool_calls && message.tool_calls.length > 0) {
       const toolCall = message.tool_calls[0];
 
@@ -124,7 +158,7 @@ export async function POST(req: Request) {
 
       console.log(`🔧 Tool Called: ${fnName}`, args);
 
-      // 1. TIMER
+      // --- TIMER MANAGEMENT ---
       if (fnName === "manage_timer") {
         return NextResponse.json({
           intent: "TIMER",
@@ -132,7 +166,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // 2. SHOPPING LIST
+      // --- SHOPPING LIST MANAGEMENT ---
       if (fnName === "manage_shopping_list") {
         return NextResponse.json({
           intent: "SHOPPING_LIST",
@@ -140,7 +174,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // 3. FRIDGE
+      // --- FRIDGE INVENTORY MANAGEMENT ---
       if (fnName === "manage_fridge_inventory") {
         return NextResponse.json({
           intent: "FRIDGE_INVENTORY",
@@ -148,7 +182,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // 4. RECIPES (Suggestions)
+      // --- RECIPE SUGGESTIONS (GENERATION) ---
       if (fnName === "generate_recipe_ideas") {
         return NextResponse.json({
           intent: "SUGGEST_RECIPE",
@@ -159,7 +193,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // 5. RECIPES (Selection)
+      // --- RECIPE PREVIEW (SELECTION) ---
       if (fnName === "select_recipe") {
         return NextResponse.json({
           intent: "SUGGEST_RECIPE",
@@ -170,7 +204,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // 6. RECIPES (Go Back)
+      // --- RECIPE EXIT (DESELECTION) ---
       if (fnName === "deselect_recipe") {
         return NextResponse.json({
           intent: "SUGGEST_RECIPE",
@@ -181,7 +215,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // 7. START COOKING (Steps)
+      // --- COOKING SESSION (START) ---
       if (fnName === "generate_cooking_steps") {
         return NextResponse.json({
           intent: "GENERATE_RECIPE",
@@ -193,7 +227,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // 8. NAVIGATION
+      // --- COOKING NAVIGATION (STEPS) ---
       if (fnName === "navigate_steps") {
         return NextResponse.json({
           intent: "NAVIGATE",
@@ -202,6 +236,10 @@ export async function POST(req: Request) {
       }
     }
 
+    // -------------------------------------------------------------------------
+    // 6. FALLBACK (QUERY)
+    // -------------------------------------------------------------------------
+    // If no tool was called, return the text response as a generic query answer.
     return NextResponse.json({
       intent: "QUERY",
       answer: message.content || "I didn't understand that command.",

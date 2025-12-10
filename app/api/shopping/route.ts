@@ -1,13 +1,31 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+/**
+ * API Route for managing the Shopping List persistence layer.
+ * * This endpoint handles CRUD operations using Prisma (PostgreSQL/SQLite).
+ * It serves as the "Source of Truth" for the shopping list, allowing the AR
+ * interface to sync data across sessions.
+ */
+
+/**
+ * Retrieves shopping list items.
+ *
+ * Modes:
+ * 1. **Get by ID**: ?id=... (Returns single item)
+ * 2. **Get by Label**: ?label=... (Returns single item)
+ * 3. **Get All**: No parameters (Returns list ordered by creation date desc)
+ *
+ * @param req - The HTTP request containing query parameters.
+ * @returns JSON response with the requested item(s) or an error.
+ */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     const label = searchParams.get("label");
 
-    // Caso 1: query per ID
+    // Case 1: Fetch by unique ID
     if (id) {
       const item = await prisma.shoppingItem.findUnique({ where: { id } });
       if (!item) {
@@ -16,7 +34,7 @@ export async function GET(req: Request) {
       return NextResponse.json(item);
     }
 
-    // Caso 2: query per LABEL
+    // Case 2: Fetch by exact Label
     if (label) {
       const item = await prisma.shoppingItem.findUnique({ where: { label } });
       if (!item) {
@@ -25,7 +43,7 @@ export async function GET(req: Request) {
       return NextResponse.json(item);
     }
 
-    // Caso 3: nessun query param -> ritorna tutti
+    // Case 3: Fetch Full List
     const items = await prisma.shoppingItem.findMany({
       orderBy: { createdAt: "desc" },
     });
@@ -36,6 +54,16 @@ export async function GET(req: Request) {
   }
 }
 
+/**
+ * Updates an existing item's quantity.
+ *
+ * Validations:
+ * - Requires either `id` OR `label` in query params.
+ * - Quantity must be a finite number >= 0.
+ *
+ * @param req - The HTTP request containing the target (query) and new quantity (body).
+ * @returns The updated item object.
+ */
 export async function PUT(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -76,26 +104,40 @@ export async function PUT(req: Request) {
   }
 }
 
+/**
+ * Adds a new item or increments the quantity of an existing one (Upsert Logic).
+ *
+ * This prevents duplicate entries for the same item name (e.g., "milk").
+ *
+ * Logic:
+ * 1. Normalize label to lowercase.
+ * 2. Check if item exists in DB.
+ * 3. If EXISTS: Update record by adding new quantity to existing quantity.
+ * 4. If NEW: Create a fresh record.
+ *
+ * @param req - The HTTP request containing { label, quantity }.
+ * @returns The created or updated item.
+ */
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const label = body.label.toLowerCase().trim();
     const quantity = typeof body.quantity === "number" ? body.quantity : 1;
 
-    // 1. Cerchiamo se esiste già
+    // 1. Check for duplicates
     const existing = await prisma.shoppingItem.findUnique({
-      where: { label }, // Assicurati che 'label' sia @unique nel tuo schema Prisma!
+      where: { label }, // Requires 'label' to be @unique in Prisma Schema
     });
 
     let item;
     if (existing) {
-      // 2. Se esiste, aggiorniamo (Logica Server-Side)
+      // 2. Logic: Merge/Increment (Server-Side Calculation)
       item = await prisma.shoppingItem.update({
         where: { id: existing.id },
         data: { quantity: (existing.quantity || 0) + quantity },
       });
     } else {
-      // 3. Se non esiste, creiamo
+      // 3. Logic: Create New
       item = await prisma.shoppingItem.create({
         data: { label, quantity },
       });
@@ -108,13 +150,24 @@ export async function POST(req: Request) {
   }
 }
 
+/**
+ * Removes items from the shopping list.
+ *
+ * Modes:
+ * 1. **Delete by ID**: ?id=...
+ * 2. **Delete by Label**: ?label=... (Removes by name, case-insensitive)
+ * 3. **Clear All**: No parameters (Truncates the list)
+ *
+ * @param req - The HTTP request containing optional filter parameters.
+ * @returns Status object { ok: true, deletedCount: number }.
+ */
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     const label = searchParams.get("label");
 
-    // Se arrivano *entrambi*, meglio rispondere errore esplicito
+    // Prevent ambiguous requests
     if (id && label) {
       return NextResponse.json(
         { error: "specify-only-one-of-id-or-label" },
@@ -122,13 +175,13 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Cancella per id
+    // Mode 1: Delete specific item by ID
     if (id) {
       await prisma.shoppingItem.delete({ where: { id } });
       return NextResponse.json({ ok: true, deletedCount: 1 });
     }
 
-    // Cancella per label
+    // Mode 2: Delete item by Label
     if (label) {
       const result = await prisma.shoppingItem.deleteMany({
         where: { label: label.toLowerCase().trim() },
@@ -136,7 +189,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ ok: true, deletedCount: result.count });
     }
 
-    // Nessun filtro -> cancella tutti
+    // Mode 3: Clear entire list (Delete All)
     const result = await prisma.shoppingItem.deleteMany({});
     return NextResponse.json({ ok: true, deletedCount: result.count });
   } catch (err) {

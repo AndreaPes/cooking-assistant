@@ -1,3 +1,10 @@
+/**
+ * AI Tool Definition for managing the Fridge/Kitchen Inventory.
+ *
+ * This tool allows the Assistant to perform CRUD operations on the user's
+ * current stock of ingredients. It includes a specific action ('scan')
+ * to trigger the hardware camera for computer vision analysis.
+ */
 export const FRIDGE_TOOLS = [
   {
     type: "function",

@@ -1,5 +1,12 @@
+/**
+ * AI Tool Definitions for Cooking Session Management.
+ *
+ * Includes tools for:
+ * 1. Generating Atomic Steps from a recipe title.
+ * 2. Navigating through steps (Next, Prev, Jump).
+ */
 export const COOKING_TOOLS = [
-  // Tool 1: Start Cooking (Generazione Step)
+  // Tool 1: Start Cooking (Step Generation)
   {
     type: "function",
     function: {

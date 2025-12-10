@@ -2,10 +2,28 @@ import { Html } from "@react-three/drei";
 import React from "react";
 
 interface FridgeInventoryProps {
+  /**
+   * The list of ingredients currently stored in the state.
+   * Renders as a scrollable list if items exceed the container height.
+   */
   items: { name: string; quantity: number }[];
+
+  /**
+   * The 3D coordinates [x, y, z] where this panel should appear in the AR scene.
+   * Defaults to [5, 0, -2] (Right side) if not provided.
+   */
   customPosition?: [number, number, number];
 }
 
+/**
+ * 3D Component that visualizes the current contents of the user's fridge.
+ *
+ * It uses a `drei/Html` overlay to render a stylized Tailwind CSS interface
+ * within the 3D Canvas. It handles empty states and scrolling for long lists.
+ *
+ * @param items - Array of ingredients with names and quantities.
+ * @param customPosition - Vector3 position for the panel anchor.
+ */
 export function FridgeInventory({
   items,
   customPosition,

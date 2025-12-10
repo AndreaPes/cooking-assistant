@@ -6,13 +6,38 @@ import {
 } from "@/state/shoppingState";
 
 interface ShoppingItemProps {
+  /**
+   * The title displayed at the top of the list.
+   * Defaults to "SHOPPING" if not provided.
+   */
   label: string;
+
+  /**
+   * Optional quantity for a specific item view (rarely used in the full list view).
+   */
   quantity?: number;
+
+  /**
+   * The 3D coordinates [x, y, z] for the list panel anchor.
+   * Defaults to [5, 0, -2] (Right side) if omitted.
+   */
   customPosition?: [number, number, number];
 }
 
 const ITEMS_PER_PAGE = 5;
 
+/**
+ * 3D Component that renders the Shopping List interface.
+ *
+ * Features:
+ * - **Pagination**: Displays a subset of items to avoid AR visual clutter.
+ * - **Live Sync**: Listens to the global `shoppingState` for updates.
+ * - **Flash Feedback**: Automatically detects when a new item is added to the top of the list
+ * and triggers a visual "Item Added" flash effect, resetting pagination to page 0.
+ *
+ * @param label - Panel title.
+ * @param customPosition - 3D position vector.
+ */
 export function ShoppingList({
   label,
   quantity,
@@ -20,48 +45,66 @@ export function ShoppingList({
 }: ShoppingItemProps) {
   const { items } = useShoppingState();
   const [lastAdded, setLastAdded] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0); // 👈 State per la pagina corrente
+  const [currentPage, setCurrentPage] = useState(0);
 
   const positionVector = customPosition || [5, 0, -2];
   const hideTimeoutRef = useRef<number | null>(null);
 
-  // --- LOGICA FLASH "ITEM ADDED" ---
+  // ---------------------------------------------------------------------------
+  // FLASH EFFECT LOGIC
+  // ---------------------------------------------------------------------------
+  // Temporarily highlights the panel borders and header when a new item arrives.
+  // The effect clears automatically after 3 seconds.
   useEffect(() => {
     if (!lastAdded) return;
     if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+
     hideTimeoutRef.current = window.setTimeout(() => {
       setLastAdded(null);
       hideTimeoutRef.current = null;
     }, 3000);
+
     return () => {
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
     };
   }, [lastAdded]);
 
-  // --- CARICAMENTO INIZIALE ---
+  // ---------------------------------------------------------------------------
+  // INITIAL LOAD
+  // ---------------------------------------------------------------------------
+  // Fetches the latest list from the database when the component mounts.
   useEffect(() => {
     loadShoppingFromServer();
   }, []);
 
-  // --- RILEVAMENTO NUOVI ITEMS ---
+  // ---------------------------------------------------------------------------
+  // NEW ITEM DETECTION
+  // ---------------------------------------------------------------------------
+  // Monitors the `items` array to detect changes at index 0.
+  // If the first item changes, it assumes a new item was added via Voice or API.
   const prevFirstId = useRef<string | null>(null);
+
   useEffect(() => {
     if (!items || items.length === 0) {
       prevFirstId.current = null;
       return;
     }
     const first = items[0];
-    // Se cambia il primo elemento, significa che ne è stato aggiunto uno nuovo
+
+    // Check if the top item has changed (implies insertion)
     if (prevFirstId.current && prevFirstId.current !== first.id) {
       setLastAdded(
         `${first.label}${first.quantity ? ` × ${first.quantity}` : ""}`,
       );
-      setCurrentPage(0); // 👈 FORZA IL RITORNO ALLA PAGINA 1 per vedere l'item
+      // Force return to the first page so the user sees the new item immediately
+      setCurrentPage(0);
     }
     prevFirstId.current = first.id;
   }, [items]);
 
-  // --- CALCOLI PAGINAZIONE ---
+  // ---------------------------------------------------------------------------
+  // PAGINATION LOGIC
+  // ---------------------------------------------------------------------------
   const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
   const visibleItems = items.slice(
     currentPage * ITEMS_PER_PAGE,
@@ -101,7 +144,7 @@ export function ShoppingList({
             </div>
           </div>
 
-          {/* LIST CONTENT (Altezza fissa per evitare salti) */}
+          {/* LIST CONTENT */}
           <div className="min-h-[280px] flex flex-col gap-2">
             {items.length === 0 ? (
               <div className="h-full flex items-center justify-center text-white/30 text-sm italic font-medium">
@@ -109,6 +152,7 @@ export function ShoppingList({
               </div>
             ) : (
               visibleItems.map((item, index) => {
+                // Calculate absolute index for display (e.g., 6, 7, 8 on page 2)
                 const absoluteIndex = index + 1 + currentPage * ITEMS_PER_PAGE;
 
                 return (
@@ -139,7 +183,7 @@ export function ShoppingList({
           {/* FOOTER: PAGINATION CONTROLS */}
           {totalPages > 1 && (
             <div className="mt-4 pt-3 border-t border-white/10 flex justify-between items-center">
-              {/* Bottone Prev */}
+              {/* Prev Button */}
               <button
                 onClick={prevPage}
                 disabled={currentPage === 0}
@@ -149,12 +193,12 @@ export function ShoppingList({
                 ←
               </button>
 
-              {/* Indicatore Pagina */}
+              {/* Page Indicator */}
               <span className="text-[10px] font-mono font-bold text-white/40 tracking-widest">
                 PAGE {currentPage + 1} / {totalPages}
               </span>
 
-              {/* Bottone Next */}
+              {/* Next Button */}
               <button
                 onClick={nextPage}
                 disabled={currentPage >= totalPages - 1}

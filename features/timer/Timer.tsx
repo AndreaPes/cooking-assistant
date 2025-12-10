@@ -4,9 +4,30 @@ import { useCookingState } from "@/state/cookingState";
 import { TimerItem } from "@/state/slices/timerSlice";
 
 interface TimerProps extends TimerItem {
+  /**
+   * The 3D coordinates [x, y, z] to position the timer in the scene.
+   * If not provided, it defaults to a right-aligned stack position.
+   */
   customPosition?: [number, number, number];
 }
 
+/**
+ * 3D Component representing a single active timer.
+ *
+ * It manages its own internal countdown state to decouple the UI refresh rate
+ * from the global store, improving performance.
+ *
+ * Features:
+ * - **Visuals**: Glassmorphism UI that pulses red when finished.
+ * - **Audio**: Plays a looped alarm sound upon completion.
+ * - **Self-Destruct**: Automatically removes itself from the global store after 30 seconds of ringing to clear the HUD.
+ *
+ * @param id - Unique timer ID.
+ * @param seconds - Initial duration in seconds.
+ * @param label - Name of the timer (e.g., "Pasta").
+ * @param status - Current state ('running', 'paused', 'idle').
+ * @param customPosition - Vector3 position.
+ */
 export function Timer({
   id,
   seconds,
@@ -14,21 +35,22 @@ export function Timer({
   customPosition,
   status,
 }: TimerProps) {
-  // --- State ---
+  // --- Local State ---
+  // Managed locally to allow 1-second interval updates without re-rendering the entire app tree.
   const [timeLeft, setTimeLeft] = useState(seconds);
   const [isFinished, setIsFinished] = useState(false);
 
-  // --- Refs & Hooks ---
+  // --- Refs ---
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // We only need the specific delete function by ID to prevent "Ghost Gaps"
+  // --- Global Actions ---
   const { removeTimerById } = useCookingState();
 
-  // --- Helpers ---
+  // --- Audio Helpers ---
 
   /**
-   * Plays the alarm sound in a loop.
-   * Uses a standard Google sound asset.
+   * Initializes and plays the alarm sound.
+   * Sets loop=true to ensure continuous ringing until user interaction or timeout.
    */
   const playAlarmSound = () => {
     const alarmSound = new Audio(
@@ -41,7 +63,8 @@ export function Timer({
   };
 
   /**
-   * Stops the audio immediately and clears the ref.
+   * Stops the currently playing audio and cleans up the reference.
+   * Safe to call even if no audio is playing.
    */
   const stopAlarm = () => {
     if (audioRef.current) {
@@ -51,7 +74,8 @@ export function Timer({
   };
 
   /**
-   * Formats seconds into MM:SS
+   * Formats a seconds integer into a standard MM:SS string.
+   * Example: 65 -> "1:05"
    */
   const formatTime = (s: number) => {
     const minutes = Math.floor(s / 60);
@@ -59,26 +83,27 @@ export function Timer({
     return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Default to right-side stacking if no position provided
+  // Default Anchor: Right side of the field of view
   const positionVector = customPosition || [5, 0, -2];
 
   // --- Effects ---
 
   /**
-   * Reset Logic:
-   * If the AI updates the seconds (e.g., "Change timer to 5 mins"),
-   * this resets the countdown state.
+   * SYNC EFFECT:
+   * Watches for changes in the `seconds` prop (e.g., AI updates the duration).
+   * Resets local state and stops any active alarms.
    */
   useEffect(() => {
     console.log("🔄 Timer Updated:", seconds);
     setTimeLeft(seconds);
     setIsFinished(false);
-    stopAlarm(); // Stop any ringing alarms if reset
+    stopAlarm();
   }, [seconds]);
 
   /**
-   * Core Countdown Loop:
-   * Decrements time every second. Triggers alarm at 0.
+   * COUNTDOWN EFFECT:
+   * The core ticker. Decrements `timeLeft` every second if status is 'running'.
+   * Triggers the finish state when 0 is reached.
    */
   useEffect(() => {
     if (status === "running" && timeLeft > 0) {
@@ -91,16 +116,17 @@ export function Timer({
   }, [timeLeft, status]);
 
   /**
-   * Self-Destruct Sequence:
-   * Automatically removes the timer from the Global Store after 30 seconds of ringing.
-   * This fixes the "Ghost Space" bug because the store updates the list length.
+   * CLEANUP EFFECT (Self-Destruct):
+   * If the timer is finished (ringing), this sets a timeout to automatically
+   * delete it from the global store after 30 seconds.
+   * This prevents "ghost timers" from cluttering the AR view.
    */
   useEffect(() => {
     if (isFinished) {
       const vanishTimer = setTimeout(() => {
         console.log(`⏰ Auto-removing timer ${id} from store...`);
         stopAlarm();
-        removeTimerById(id); // <--- This triggers the stack realignment
+        removeTimerById(id);
       }, 30000);
 
       return () => clearTimeout(vanishTimer);
@@ -108,8 +134,9 @@ export function Timer({
   }, [isFinished, id, removeTimerById]);
 
   /**
-   * Cleanup:
-   * Ensures audio stops if the user cancels the timer via voice.
+   * UNMOUNT EFFECT:
+   * Ensures audio is stopped if the component is removed from the DOM
+   * (e.g., user manually deletes the timer).
    */
   useEffect(() => {
     return () => stopAlarm();
@@ -122,7 +149,8 @@ export function Timer({
       <Html transform occlude scale={0.4}>
         <div
           className={`
-            w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg transition-all duration-500 ${status === "idle" ? "opacity-50 grayscale" : ""}
+            w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg transition-all duration-500 
+            ${status === "idle" ? "opacity-50 grayscale" : ""}
             ${
               isFinished
                 ? "bg-red-500/40 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse"
@@ -130,7 +158,7 @@ export function Timer({
             }
         `}
         >
-          {/* Timer Label */}
+          {/* Label Header */}
           <span
             className={`uppercase tracking-wider text-[10px] font-bold mb-1 ${
               isFinished ? "text-white" : "text-white/60"
@@ -139,12 +167,12 @@ export function Timer({
             {isFinished ? "TIME'S UP!" : label}
           </span>
 
-          {/* Digital Clock Display */}
+          {/* Digital Clock */}
           <div className="text-4xl font-mono font-medium text-white tracking-tight drop-shadow-sm">
             {isFinished ? "0:00" : formatTime(timeLeft)}
           </div>
 
-          {/* Progress Bar */}
+          {/* Progress Bar Visual */}
           <div className="h-1 w-full bg-black/20 rounded-full mt-3 overflow-hidden">
             <div
               className={`h-full transition-all duration-1000 ease-linear ${

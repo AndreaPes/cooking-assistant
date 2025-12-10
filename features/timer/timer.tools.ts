@@ -1,3 +1,12 @@
+/**
+ * AI Tool Definitions for managing Cooking Timers.
+ *
+ * This tool gives the Assistant the ability to:
+ * 1. Create new timers (Action: 'start').
+ * 2. Resume or Start existing idle timers (Action: 'start_existing').
+ * 3. Stop or Delete timers (Action: 'stop').
+ * 4. Clear all active timers.
+ */
 export const TIMER_TOOLS = [
   {
     type: "function",
