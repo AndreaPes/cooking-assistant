@@ -112,6 +112,7 @@ export async function POST(req: Request) {
       - COOKING MODE: If the user says "Start cooking", call 'generate_cooking_steps'.
       - NAVIGATION: If the context shows a recipe is ACTIVE (Cooking Now), interpret "Next", "Back", or "Repeat" as 'navigate_steps', NOT as generic chat.
       - SAFETY: When generating steps, be paranoid about safety. Always flag hot items or raw meat in the 'warning' field.
+      - SHOPPING ACTIONS: If the user says "Add [item]", ALWAYS use action='add'. Even if the item is already on the list, DO NOT use 'remove'. Only use 'remove' if the user explicitly says "remove", "delete", "check off", or "I bought/got it".
       - SHOPPING vs FRIDGE: Distinguish carefully between "I have" (Fridge Inventory) and "I need/buy" (Shopping List).
       - DATA EXTRACTION: When the user mentions multiple items (e.g. "butter and potatoes"), you MUST include ALL of them in the tool call's 'items' array. NEVER truncate the list.
       - LISTS: Never read the Shopping List or Recipe List aloud. Always use the corresponding TOOL ('manage_shopping_list' with action='show', or 'generate_recipe_ideas') to display the UI.
