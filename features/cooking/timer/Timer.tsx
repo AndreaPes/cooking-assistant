@@ -18,7 +18,7 @@ interface TimerProps extends TimerItem {
  * from the global store, improving performance.
  *
  * Features:
- * - **Visuals**: Glassmorphism UI that pulses red when finished.
+ * - **Visuals**: Glass morphism UI that pulses red when finished.
  * - **Audio**: Plays a looped alarm sound upon completion.
  * - **Self-Destruct**: Automatically removes itself from the global store after 30 seconds of ringing to clear the HUD.
  *
@@ -42,6 +42,7 @@ export function Timer({
 
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const prevSecondsRef = useRef(seconds);
 
   // --- Global Actions ---
   const { removeTimerById } = useCookingState();
@@ -94,11 +95,19 @@ export function Timer({
    * Resets local state and stops any active alarms.
    */
   useEffect(() => {
-    console.log("🔄 Timer Updated:", seconds);
-    setTimeLeft(seconds);
-    setIsFinished(false);
-    stopAlarm();
-  }, [seconds]);
+    const delta = seconds - prevSecondsRef.current;
+
+    if (delta !== 0) {
+      console.log(`Adjusting Timer ${label}: ${delta > 0 ? "+" : ""}${delta}s`);
+      setTimeLeft((current) => Math.max(current + delta, 0));
+      prevSecondsRef.current = seconds;
+    }
+
+    if (status !== "finished") {
+      setIsFinished(false);
+      stopAlarm();
+    }
+  }, [seconds, label, status]);
 
   /**
    * COUNTDOWN EFFECT:
@@ -106,14 +115,19 @@ export function Timer({
    * Triggers the finish state when 0 is reached.
    */
   useEffect(() => {
+    if (status === "paused" || status === "idle") return;
+
     if (status === "running" && timeLeft > 0) {
-      const interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
+      const interval = setInterval(
+        () => setTimeLeft((t) => Math.max(0, t - 1)),
+        1000,
+      );
       return () => clearInterval(interval);
-    } else if (status === "running" && timeLeft <= 0) {
+    } else if (status === "running" && timeLeft <= 0 && !isFinished) {
       setIsFinished(true);
       playAlarmSound();
     }
-  }, [timeLeft, status]);
+  }, [timeLeft, status, isFinished]);
 
   /**
    * CLEANUP EFFECT (Self-Destruct):
@@ -151,6 +165,7 @@ export function Timer({
           className={`
             w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg transition-all duration-500 
             ${status === "idle" ? "opacity-50 grayscale" : ""}
+            ${status === "paused" ? "border-yellow-400 bg-yellow-400/10" : ""} 
             ${
               isFinished
                 ? "bg-red-500/40 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse"
@@ -159,12 +174,9 @@ export function Timer({
         `}
         >
           {/* Label Header */}
-          <span
-            className={`uppercase tracking-wider text-[10px] font-bold mb-1 ${
-              isFinished ? "text-white" : "text-white/60"
-            }`}
-          >
-            {isFinished ? "TIME'S UP!" : label}
+          <span className="uppercase tracking-wider text-[10px] font-bold mb-1 text-white/60">
+            {isFinished ? "TIME'S UP!" : label}{" "}
+            {status === "paused" && "(PAUSED)"}
           </span>
 
           {/* Digital Clock */}
@@ -176,10 +188,16 @@ export function Timer({
           <div className="h-1 w-full bg-black/20 rounded-full mt-3 overflow-hidden">
             <div
               className={`h-full transition-all duration-1000 ease-linear ${
-                isFinished ? "bg-red-500 w-full" : "bg-white/80"
+                isFinished
+                  ? "bg-red-500 w-full"
+                  : status === "paused"
+                    ? "bg-yellow-400"
+                    : "bg-white/80"
               }`}
               style={{
-                width: isFinished ? "100%" : `${(timeLeft / seconds) * 100}%`,
+                width: isFinished
+                  ? "100%"
+                  : `${Math.min(100, (timeLeft / seconds) * 100)}%`,
               }}
             />
           </div>

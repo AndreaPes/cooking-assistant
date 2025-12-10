@@ -2,14 +2,14 @@
 
 ## 📌 Legend
 
-| Symbol | Meaning                                            |
-|:------:|:---------------------------------------------------|
-|   🟢   | **Low Complexity**                                 |
-|   🟡   | **Medium Complexity**                              |
-|   🔴   | **High Complexity**                                |
-|   ⭐    | **High Feasibility**                               |
-|   ⚖️   | **Medium Feasibility**   |
-|   🧪   | **Low Feasibility**   |
+| Symbol | Meaning                |
+|:------:|:-----------------------|
+|   🟢   | **Low Complexity**     |
+|   🟡   | **Medium Complexity**  |
+|   🔴   | **High Complexity**    |
+|   ⭐    | **High Feasibility**   |
+|   ⚖️   | **Medium Feasibility** |
+|   🧪   | **Low Feasibility**    |
 
 ---
 
@@ -44,10 +44,20 @@ Enhancing the "Brain" to handle more natural and complex requests.
       AI can read it.
     - *Metrics:* Complexity: 🟢 | Feasibility: ⭐
 
-- [ ] **Smart Timer Control**
-    - *Goal:* Support commands like "Pause timer", "Resume timer", "Add 5 minutes to pasta timer".
-    - *Implementation:* Update `timer.tools.ts` enum and `ARScene` logic.
+- [X] **Smart Timer Control**
+    - *Goal:* Support commands like "Pause timer", "Resume timer", "Add 5 minutes to pasta timer", "Rename timer".
+    - *Implementation:* Updated `timer.tools.ts` enum and `timerSlice` logic.
     - *Metrics:* Complexity: 🟡 | Feasibility: ⭐
+
+- [ ] **Dietary Intelligence (User Profile)**
+    - *Goal:* Create a User Profile slice (Vegan, Allergies). Inject this context into the System Prompt to
+      automatically filter recipe suggestions based on restrictions.
+    - *Metrics:* Complexity: 🟢 | Feasibility: ⭐
+
+- [ ] **Undo Capability**
+    - *Goal:* Implement an action history stack to allow commands like "Undo that" or "Go back" for destructive
+      actions (e.g., accidental deletion of shopping items).
+    - *Metrics:* Complexity: 🔴 | Feasibility: ⚖️
 
 - [ ] **Multi-language Support**
     - *Goal:* Detect `navigator.language`. Inject "User speaks [Language]" into System Prompt to force AI replies in the
@@ -74,7 +84,7 @@ Improving how the user interacts with the assistant.
       cooking.
     - *Metrics:* Complexity: 🟡 | Feasibility: ⭐
 
-- [ ] **Ephemeral UI Updates**
+- [X] **Ephemeral UI Updates**
     - *Goal:* Allow renaming timers or items via voice (e.g., "Rename timer 1 to Rice").
     - *Metrics:* Complexity: 🟡 | Feasibility: ⭐
 
@@ -89,7 +99,12 @@ Improving how the user interacts with the assistant.
 
 Code health, performance, and scalability.
 
-- [ ] **Wake Word Engine**
+- [ ] **State Persistence (Timers & Data)**
+    - *Goal:* Use `zustand/persist` to save Shopping List and Timers to `localStorage`. For timers, store
+      `expiryTimestamp` instead of seconds to handle browser refreshes/crashes correctly.
+    - *Metrics:* Complexity: 🟡 | Feasibility: ⭐
+
+- [X] **Wake Word Engine**
     - *Goal:* Implement local wake word (Picovoice Porcupine or TensorFlow.js) to trigger listening without clicking.
     - *Metrics:* Complexity: 🔴 | Feasibility: ⚖️ (Browser limitations)
 

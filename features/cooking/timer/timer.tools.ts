@@ -19,13 +19,28 @@ export const TIMER_TOOLS = [
         properties: {
           action: {
             type: "string",
-            enum: ["start", "start_existing", "stop", "stop_all"],
+            enum: [
+              "start",
+              "start_existing",
+              "stop",
+              "stop_all",
+              "pause",
+              "resume",
+              "add_time",
+              "subtract_time",
+              "rename",
+            ],
             description: `
-              The specific operation to perform:
-              - 'start': Creates a NEW timer. Use this if the user specifies a duration (e.g. '10 minutes') or says 'new timer'.
-              - 'start_existing': Resumes/Starts a specific IDLE timer found in the context. PRIORITY: Use this if user says 'Start' and there is a matching IDLE timer.
-              - 'stop': Pauses or deletes a timer. ONLY use this if user explicitly says 'Stop', 'Cancel', 'Delete'.
-              - 'stop_all': Clears all timers.
+              Operations:
+              - 'start': Create NEW timer.
+              - 'start_existing': Resume/Start specific IDLE timer.
+              - 'stop': Delete timer.
+                - 'stop_all': Delete ALL active timers.
+              - 'pause': Pause a running timer.
+              - 'resume': Resume a paused timer.
+              - 'add_time': Add seconds to running timer.
+              - 'subtract_time': Remove seconds.
+              - 'rename': Change label.
             `,
           },
           label: {

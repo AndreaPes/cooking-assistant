@@ -36,6 +36,10 @@ export function useCookingAssistant(
     setSuggestion,
     addTimer,
     startTimer,
+    pauseTimer,
+    resumeTimer,
+    adjustTimer,
+    renameTimer,
     removeTimerById,
     clearAllTimers,
     stopCooking,
@@ -96,257 +100,252 @@ export function useCookingAssistant(
   const handleAIResponse = async (action: any) => {
     const intentType = action.intent || action.type || action.interface;
 
-    // 1. GENERATE / START COOKING
-    if (intentType === "GENERATE_RECIPE") {
-      if (action.recipe) {
-        loadRecipe(action.recipe);
-        setAiState(null); // Clear menu
+    switch (intentType) {
+      // 1. GENERATE / START COOKING
+      case "GENERATE_RECIPE":
+        if (action.recipe) {
+          loadRecipe(action.recipe);
+          setAiState(null); // Clear menu
+          setSuggestion(null);
+
+          jumpToStep(0);
+          if (action.recipe.steps?.length > 0) {
+            checkAndSpawnTimer(action.recipe.steps[0]);
+          }
+        }
+        break;
+
+      // 2. NAVIGATE STEPS
+      case "NAVIGATE":
+        // Force close any open menus (List/Fridge) to show the Step Guide
+        setAiState(null);
         setSuggestion(null);
 
-        jumpToStep(0);
-        if (action.recipe.steps?.length > 0) {
-          checkAndSpawnTimer(action.recipe.steps[0]);
-        }
-      }
-      return;
-    }
+        const dir = action.direction?.toLowerCase();
+        const target = action.target;
 
-    // 2. NAVIGATE STEPS
-    if (intentType === "NAVIGATE") {
-      // Force close any open menus (List/Fridge) to show the Step Guide
-      setAiState(null);
-      setSuggestion(null);
+        console.log(`Executing Navigation: dir=${dir} (target=${target})`);
 
-      const dir = action.direction?.toLowerCase();
-      const target = action.target;
-
-      console.log(`Executing Navigation: dir=${dir} (target=${target})`);
-
-      if (dir === "next") nextStep();
-      else if (dir === "prev" || dir === "previous") prevStep();
-      else if (dir === "jump" || dir === "last" || dir === "first") {
-        if (target === "first" || dir === "first") jumpToStep(0);
-        else if (target === "last" || dir === "last") {
-          const currentRecipe = useCookingState.getState().activeRecipe;
-          if (currentRecipe?.steps) jumpToStep(currentRecipe.steps.length);
-        } else if (typeof target === "number")
-          jumpToStep(Math.max(0, target - 1));
-      }
-
-      // Check for timers in the new step after a brief delay
-      setTimeout(() => {
-        const updatedState = useCookingState.getState();
-        const newIndex = updatedState.currentStepIndex;
-        const steps = updatedState.activeRecipe?.steps;
-
-        if (updatedState.activeRecipe && steps && newIndex === steps.length) {
-          setToastMessage("Recipe Completed!");
-          setTimeout(() => {
-            setToastMessage(null);
-            stopCooking();
-          }, 4000);
-        } else if (steps && steps[newIndex]) {
-          checkAndSpawnTimer(steps[newIndex]);
-        }
-      }, 50);
-
-      return;
-    }
-
-    // 3. RECIPE SUGGESTIONS
-    if (intentType === "SUGGEST_RECIPE") {
-      const incomingData = action.data || {};
-
-      const currentRecipes =
-        useCookingState.getState().suggestion?.recipes || [];
-      const hasNewRecipes =
-        incomingData.recipes && incomingData.recipes.length > 0;
-      const recipesToSet = hasNewRecipes
-        ? incomingData.recipes
-        : currentRecipes;
-
-      const newData = {
-        ...incomingData,
-        recipes: recipesToSet,
-        selectedTitle: incomingData.selectedTitle,
-      };
-
-      setAiState({ type: "suggest_recipe", data: newData });
-      setSuggestion(newData);
-      return;
-    }
-
-    // 4. TIMERS
-    if (intentType === "TIMER") {
-      if (action.action === "start_existing" && action.id) {
-        startTimer(action.id);
-        setTimeout(() => setToastMessage(null), 3000);
-      } else if (action.action === "start") {
-        const label = action.label || "Timer";
-        const seconds = action.seconds || 0;
-        addTimer(seconds, label, true);
-        setTimeout(() => setToastMessage(null), 3000);
-      } else if (action.action === "stop") {
-        if (action.id) removeTimerById(action.id);
-        setTimeout(() => setToastMessage(null), 3000);
-      } else if (action.action === "stop_all") {
-        clearAllTimers();
-      }
-      return;
-    }
-
-    // 5. SHOPPING LIST
-    if (intentType === "SHOPPING_LIST") {
-      const label = action.label || action.item || "";
-
-      if (action.action === "add") {
-        await addShopItem(label, action.quantity || 1);
-        setToastMessage(`Added ${label}`);
-      } else if (action.action === "show") {
-        await showShopList();
-        setAiState({ type: "shopping_list", data: { label: "Shopping List" } });
-      } else if (action.action === "remove") {
-        await removeShopItem(label);
-        setToastMessage(`Removed: ${label}`);
-      } else if (action.action === "clear") {
-        await clearShopList();
-        setToastMessage("Shopping list cleared");
-      } else if (action.action === "hide") {
-        setAiState(null);
-      }
-
-      setTimeout(() => setToastMessage(null), 3000);
-      return;
-    }
-
-    // 6. FRIDGE INVENTORY
-    if (intentType === "FRIDGE_INVENTORY") {
-      // A. Visual Scan (Analyzes camera feed)
-      if (action.action === "scan" && videoRef.current) {
-        setToastMessage("📸 Analyzing Fridge...");
-        const newScannedItems = await detectIngredientsFromImage(
-          videoRef.current,
-        );
-
-        if (newScannedItems.length > 0) {
-          addFridgeItems(newScannedItems);
-          const updatedList = useFridgeInventoryState.getState().fridgeItems;
-          // Scan always forces the list to open to show results
-          setAiState({
-            type: "fridge_inventory",
-            data: { fridgeItems: updatedList },
-          });
-          setToastMessage(`Found ${newScannedItems.length} items.`);
-        } else {
-          setToastMessage("No food detected 🤷‍♂️");
-        }
-        setTimeout(() => setToastMessage(null), 3000);
-      }
-
-      // B. Manual Add
-      else if (action.action === "add_manual" && action.items) {
-        addFridgeItems(action.items);
-        const names = action.items.map((i: any) => i.name).join(", ");
-        setToastMessage(`Added: ${names}`);
-
-        if (aiState?.type === "fridge_inventory") {
-          const updatedList = useFridgeInventoryState.getState().fridgeItems;
-          setAiState({
-            type: "fridge_inventory",
-            data: { fridgeItems: updatedList },
-          });
-        }
-
-        setTimeout(() => setToastMessage(null), 3000);
-      }
-
-      // C. Manual Remove
-      else if (action.action === "remove_manual" && action.items) {
-        removeFridgeItems(action.items);
-        const names = action.items.map((i: any) => i.name).join(", ");
-        setToastMessage(`Removed: ${names}`);
-
-        if (aiState?.type === "fridge_inventory") {
-          const updatedList = useFridgeInventoryState.getState().fridgeItems;
-          setAiState({
-            type: "fridge_inventory",
-            data: { fridgeItems: updatedList },
-          });
-        }
-
-        setTimeout(() => setToastMessage(null), 3000);
-      }
-
-      // D. Show UI
-      else if (action.action === "show") {
-        const currentList = useFridgeInventoryState.getState().fridgeItems;
-        setAiState({
-          type: "fridge_inventory",
-          data: { fridgeItems: currentList },
-        });
-        setToastMessage("Opening Fridge Inventory");
-        setTimeout(() => setToastMessage(null), 2000);
-      }
-
-      // E. Hide UI
-      else if (action.action === "hide") {
-        setAiState(null);
-        setToastMessage("Inventory hidden");
-        setTimeout(() => setToastMessage(null), 2000);
-      }
-
-      // F. Clear All
-      else if (action.action === "clear") {
-        clearFridgeInventory();
-        setToastMessage("Fridge cleared");
-        if (aiState?.type === "fridge_inventory") {
-          setAiState({ type: "fridge_inventory", data: { fridgeItems: [] } });
-        }
-        setTimeout(() => setToastMessage(null), 2000);
-      }
-      return;
-    }
-
-    // 7. GENERIC QUERY (with State Restoration)
-    if (intentType === "QUERY") {
-      if (action.answer) {
-        setAiState((currentState) => {
-          // Save current state before overwriting with instruction
-          if (currentState?.type !== "instruction") {
-            previousInterfaceRef.current = currentState;
+        if (dir === "next") nextStep();
+        else if (dir === "prev" || dir === "previous") prevStep();
+        else if (dir === "jump" || dir === "last" || dir === "first") {
+          if (target === "first" || dir === "first") jumpToStep(0);
+          else if (target === "last" || dir === "last") {
+            const currentRecipe = useCookingState.getState().activeRecipe;
+            if (currentRecipe?.steps) jumpToStep(currentRecipe.steps.length);
+          } else if (typeof target === "number") {
+            jumpToStep(Math.max(0, target - 1));
           }
+        }
 
-          return {
-            type: "instruction",
-            data: { text: action.answer },
-          };
-        });
-
-        // Estimate reading time based on word count (min 3s, max 15s)
-        const wordCount = action.answer.split(" ").length;
-        const readingTime = Math.max(3000, Math.min(15000, wordCount * 350));
-
+        // Check for timers in the new step after a brief delay
         setTimeout(() => {
-          setAiState((current) => {
-            if (
-              current?.type === "instruction" &&
-              current.data.text === action.answer
-            ) {
-              return previousInterfaceRef.current;
-            }
-            return current;
-          });
-        }, readingTime);
-      }
-      return;
-    }
+          const updatedState = useCookingState.getState();
+          const newIndex = updatedState.currentStepIndex;
+          const steps = updatedState.activeRecipe?.steps;
 
-    // Fallback for unknown interfaces
-    if (action.interface || action.type) {
-      setAiState({
-        type: (action.type ?? action.interface) as AIResponse["type"],
-        data: action.data,
-      });
+          if (updatedState.activeRecipe && steps && newIndex === steps.length) {
+            setToastMessage("Recipe Completed!");
+            setTimeout(() => {
+              setToastMessage(null);
+              stopCooking();
+            }, 4000);
+          } else if (steps && steps[newIndex]) {
+            checkAndSpawnTimer(steps[newIndex]);
+          }
+        }, 50);
+        break;
+
+      // 3. RECIPE SUGGESTIONS
+      case "SUGGEST_RECIPE":
+        const incomingData = action.data || {};
+        const currentRecipes =
+          useCookingState.getState().suggestion?.recipes || [];
+        const hasNewRecipes =
+          incomingData.recipes && incomingData.recipes.length > 0;
+        const recipesToSet = hasNewRecipes
+          ? incomingData.recipes
+          : currentRecipes;
+
+        const newData = {
+          ...incomingData,
+          recipes: recipesToSet,
+          selectedTitle: incomingData.selectedTitle,
+        };
+
+        setAiState({ type: "suggest_recipe", data: newData });
+        setSuggestion(newData);
+        break;
+
+      // 4. TIMERS
+      case "TIMER":
+        const { action: timerAction, id, label, seconds, newLabel } = action;
+
+        if (timerAction === "start_existing" && id) {
+          startTimer(id);
+          setToastMessage("Timer started");
+        } else if (timerAction === "start") {
+          addTimer(seconds || 0, label || "Timer", true);
+          setToastMessage(`Started timer: ${label || "Timer"}`);
+        } else if (timerAction === "stop" && id) {
+          removeTimerById(id);
+          setToastMessage("Timer deleted");
+        } else if (timerAction === "stop_all") {
+          clearAllTimers();
+          setToastMessage("All timers deleted");
+        } else if (timerAction === "pause" && id) {
+          pauseTimer(id);
+          setToastMessage("Timer paused");
+        } else if (timerAction === "resume" && id) {
+          resumeTimer(id);
+          setToastMessage("Timer resumed");
+        } else if (timerAction === "add_time" && id && seconds) {
+          adjustTimer(id, seconds);
+          setToastMessage(`Added ${seconds} seconds`);
+        } else if (timerAction === "subtract_time" && id && seconds) {
+          adjustTimer(id, -seconds);
+          setToastMessage(`Subtracted ${seconds} seconds`);
+        } else if (timerAction === "rename" && id) {
+          const finalName = newLabel || label || "Timer";
+          if (finalName) {
+            renameTimer(id, finalName);
+            setToastMessage(`Renamed timer to ${finalName}`);
+          }
+        }
+        setTimeout(() => setToastMessage(null), 3000);
+        break;
+
+      // 5. SHOPPING LIST
+      case "SHOPPING_LIST":
+        const shopLabel = action.label || action.item || "";
+        const shopAction = action.action;
+
+        if (shopAction === "add") {
+          await addShopItem(shopLabel, action.quantity || 1);
+          setToastMessage(`Added ${shopLabel}`);
+        } else if (shopAction === "show") {
+          await showShopList();
+          setAiState({
+            type: "shopping_list",
+            data: { label: "Shopping List" },
+          });
+        } else if (shopAction === "remove") {
+          await removeShopItem(shopLabel);
+          setToastMessage(`Removed: ${shopLabel}`);
+        } else if (shopAction === "clear") {
+          await clearShopList();
+          setToastMessage("Shopping list cleared");
+        } else if (shopAction === "hide") {
+          setAiState(null);
+        }
+        setTimeout(() => setToastMessage(null), 3000);
+        break;
+
+      // 6. FRIDGE INVENTORY
+      case "FRIDGE_INVENTORY":
+        const fridgeAction = action.action;
+
+        if (fridgeAction === "scan" && videoRef.current) {
+          setToastMessage("📸 Analyzing Fridge...");
+          const newScannedItems = await detectIngredientsFromImage(
+            videoRef.current,
+          );
+
+          if (newScannedItems.length > 0) {
+            addFridgeItems(newScannedItems);
+            const updatedList = useFridgeInventoryState.getState().fridgeItems;
+            setAiState({
+              type: "fridge_inventory",
+              data: { fridgeItems: updatedList },
+            });
+            setToastMessage(`Found ${newScannedItems.length} items.`);
+          } else {
+            setToastMessage("No food detected 🤷‍♂️");
+          }
+        } else if (fridgeAction === "add_manual" && action.items) {
+          addFridgeItems(action.items);
+          const names = action.items.map((i: any) => i.name).join(", ");
+          setToastMessage(`Added: ${names}`);
+
+          if (aiState?.type === "fridge_inventory") {
+            const updatedList = useFridgeInventoryState.getState().fridgeItems;
+            setAiState({
+              type: "fridge_inventory",
+              data: { fridgeItems: updatedList },
+            });
+          }
+        } else if (fridgeAction === "remove_manual" && action.items) {
+          removeFridgeItems(action.items);
+          const names = action.items.map((i: any) => i.name).join(", ");
+          setToastMessage(`Removed: ${names}`);
+
+          if (aiState?.type === "fridge_inventory") {
+            const updatedList = useFridgeInventoryState.getState().fridgeItems;
+            setAiState({
+              type: "fridge_inventory",
+              data: { fridgeItems: updatedList },
+            });
+          }
+        } else if (fridgeAction === "show") {
+          const currentList = useFridgeInventoryState.getState().fridgeItems;
+          setAiState({
+            type: "fridge_inventory",
+            data: { fridgeItems: currentList },
+          });
+          setToastMessage("Opening Fridge Inventory");
+        } else if (fridgeAction === "hide") {
+          setAiState(null);
+          setToastMessage("Inventory hidden");
+        } else if (fridgeAction === "clear") {
+          clearFridgeInventory();
+          setToastMessage("Fridge cleared");
+          if (aiState?.type === "fridge_inventory") {
+            setAiState({ type: "fridge_inventory", data: { fridgeItems: [] } });
+          }
+        }
+        setTimeout(() => setToastMessage(null), 3000);
+        break;
+
+      // 7. GENERIC QUERY
+      case "QUERY":
+        if (action.answer) {
+          setAiState((currentState) => {
+            if (currentState?.type !== "instruction") {
+              previousInterfaceRef.current = currentState;
+            }
+            return { type: "instruction", data: { text: action.answer } };
+          });
+
+          const wordCount = action.answer.split(" ").length;
+          const readingTime = Math.max(3000, Math.min(15000, wordCount * 350));
+
+          setTimeout(() => {
+            setAiState((current) => {
+              if (
+                current?.type === "instruction" &&
+                current.data.text === action.answer
+              ) {
+                return previousInterfaceRef.current;
+              }
+              return current;
+            });
+          }, readingTime);
+        }
+        break;
+
+      // Fallback for unknown interfaces
+      default:
+        if (action.interface || action.type) {
+          setAiState({
+            type: (action.type || action.interface) as AIResponse["type"],
+            data: action.data,
+          });
+        } else {
+          console.warn("Unhandled AI Intent:", intentType);
+          setToastMessage("🤔 I didn't quite catch that action.");
+          setTimeout(() => setToastMessage(null), 3000);
+        }
+        break;
     }
   };
 
