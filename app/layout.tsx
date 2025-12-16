@@ -18,6 +18,11 @@ export const metadata: Metadata = {
   description: "Your AI-powered cooking companion.",
 };
 
+/**
+ * Viewport configuration optimized for AR and Mobile.
+ * - Disables user scaling to prevent accidental zooming while interacting with 3D elements.
+ * - Sets the theme color to match the application background.
+ */
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -26,6 +31,12 @@ export const viewport: Viewport = {
   themeColor: "#111827",
 };
 
+/**
+ * Root Layout Component.
+ * Wraps the entire application with global styles and font configurations.
+ *
+ * @param children - The page content to be rendered.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{

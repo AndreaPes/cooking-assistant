@@ -1,127 +1,110 @@
 # AR Cooking Assistant
 
-A voice-controlled Augmented Reality cooking assistant built with **Next.js**, **React Three Fiber (WebXR)**, and **OpenAI**.
+> **A voice-controlled Augmented Reality cooking companion.**
 
-This project allows users to view recipe steps, set timers, and manage shopping lists via a hands-free AR interface (or webcam passthrough).
+![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat&logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-19-blue?style=flat&logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat&logo=typescript&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o-412991?style=flat&logo=openai&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat&logo=prisma&logoColor=white)
+![Neon](https://img.shields.io/badge/Neon-Database-00E599?style=flat&logo=postgresql&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white)
+[![Deployment](https://img.shields.io/badge/Vercel-Deployed-000000?style=flat&logo=vercel&logoColor=white)](https://cooking-assistant-green.vercel.app/)
 
-## Getting Started
+Built with **Next.js**, **React Three Fiber (WebXR)**, and **OpenAI**, this application transforms your kitchen into a
+smart environment. It allows users to view recipe steps, manage timers, and control inventory hands-free using voice
+commands or through an AR headset.
+
+## Key Features
+
+- **Immersive AR Interface:** Floating 3D panels for recipes, timers, and lists that follow you in the room.
+- **Voice First:** Full hands-free control. Just say **"Hey Mirage"** to wake the assistant up.
+- **AI Powered:** Powered by OpenAI to understand natural language, generate recipes, and answer cooking
+  questions.
+- **Cloud Sync:** Shopping List persists in a **PostgreSQL Database**, accessible from any device.
+- **Fridge Scanning:** Scan your fridge contents using your device camera to suggest recipes based on available ingredients.
+
+---
+
+## Voice Commands Cheatsheet
+
+Once you say the wake word **"Hey Mirage"** (or click the microphone), try these commands:
+
+| Category       | Command Examples                                                                                                                   |
+|:---------------|:-----------------------------------------------------------------------------------------------------------------------------------|
+| **Cooking**    | "I want to cook a Carbonara" <br> "Suggest a vegan recipe with what I have"                                                        |
+| **Navigation** | "Next step", "Go back", "Repeat that", "What is step 3?"                                                                           |
+| **Timers**     | "Start a timer for 10 minutes for pasta" <br> "Pause the timer" <br> "Add 5 minutes to the timer" <br> "Rename the timer to Pizza" |
+| **Shopping**   | "Add milk and eggs to shopping list" <br> "Remove the chicken" <br> "Show shopping list" <br> "Clear the shopping list"            |
+| **Scan**       | "Scan my fridge"                                                                                                                   |
+| **Fridge**     | "Add tomatoes to the fridge" <br> "What do I have in the fridge?" <br> "Clear the fridge inventory"                                |
+| **General**    | "How many grams is one cup of flour?" (Unit conversion)                                                                            |
+
+---
+
+## Tech Stack
+
+- **Framework:** [Next.js 15](https://nextjs.org/)
+- **3D Engine:** [React Three Fiber](https://docs.pmnd.rs/react-three-fiber) & [Drei](https://github.com/pmndrs/drei)
+- **XR/AR:** [@react-three/xr](https://github.com/pmndrs/react-three-xr)
+- **AI Logic:** OpenAI API (Function Calling)
+- **Voice Recognition:** [Picovoice Porcupine](https://picovoice.ai/platform/porcupine/) (Wake Word) + Web Speech API (Transcription)
+- **Database:** Prisma ORM + Neon (PostgreSQL)
+- **State Management:** Zustand
+- **Deployment:** [Vercel](https://cooking-assistant-green.vercel.app/)
+
+---
+
+## 🚀 Getting Started
+
+Follow these instructions to set up the project locally.
 
 ### 1. Prerequisites
-- Node.js
-- A modern browser (Chrome/Edge) or Meta Quest 3 for AR.
-- **OpenAI API Key** (Required for the AI "Brain").
+
+- Node.js (v18+)
+- A modern browser (Chrome/Edge/Safari)
+- **OpenAI API Key**
+- A **Neon** (Postgres) Database URL
 
 ### 2. Installation
 
 ```bash
-# Clone the repo
-git clone [https://github.com/YOUR_USERNAME/cooking-assistant.git](https://github.com/YOUR_USERNAME/cooking-assistant.git)
+# Clone the repository
+git clone [https://github.com/andreapes/cooking-assistant.git](https://github.com/andreapes/cooking-assistant.git)
+
+# Navigate into directory
+cd cooking-assistant
 
 # Install dependencies
 npm install
 ```
 
 ### 3. Environment Setup
-Create a .env.local file in the root directory and add your keys:
+
+Create a `.env` file in the root directory (do NOT commit this file):
 
 ```bash
- OPENAI_API_KEY=sk-proj-...........................
-# Do not commit this file to GitHub!
+# OpenAI Key for the AI Brain
+OPENAI_API_KEY="sk-proj-..........................."
+
+# Database Connection (Neon/Postgres)
+DATABASE_URL="postgres://user:password@ep-your-region.aws.neon.tech/neondb?sslmode=require"
 ```
 
-### 4. Run Development Server
+### 4. Database Initialization
+Push the Prisma schema to your remote database to create the tables.
+
 ```bash
- npm run dev
-```
-Open http://localhost:3000 to see the app.
-
-Click "Start AR Mode" to use your Webcam as a simulator.
-
-Click "Speak" to give voice commands.
-
-## Project Architecture
-
-To prevent merge conflicts, we use a **Feature-Based Architecture**.
-Do **NOT** put everything in `components/` or `state/cookingState.ts`.
-
-### Folder Structure
-
-```text
-/features             <-- ALL NEW UI WORK GOES HERE
-  /timer/             -> Specific feature folder
-    Timer.tsx         -> The 3D Component
-    timer.prompt.ts   -> AI Rules for this feature
-  /new_feature/
-    new_feature.tsx
-    new_feature.prompt.ts
-
-/state/slices         <-- ALL NEW LOGIC GOES HERE
-  timerSlice.ts       -> Logic for timers
-  new_feature.ts      -> Logic for the new feature
- ```
-
-## Developer Guide: How to Add a New Feature
-
-Follow these 4 steps to add a new interface without breaking other code.
-
-### 1. Create the Feature UI
-
-Create a folder in features/new_feature and build your 3D component.
-
-```
-// features/new_feature/new_feature.tsx
-import { Html } from '@react-three/drei';
-
-export function new_feature({ items }) {
-  return (
-    <group position={[1.5, 0, -2]}>
-      <Html transform>{/* Your UI Here */}</Html>
-    </group>
-  );
-}
+npx prisma db push
 ```
 
-### 2. Define AI Rules (Prompts)
+### 5. Run the Development Server
 
-Create a prompt file in your feature folder so the AI knows how to handle your feature.
-
+```bash
+npm run dev
 ```
-// features/new_feature/new_feature.prompt.ts
-export const NEW_FEATURE_RULES = `
-- If user says "something", return something
-`;
+open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-export const NEW_FEATURE_JSON_FORMAT = `
-- FEATURE: { something }
-`;
-```
+## License
 
-### 3. Register the Component
-
-Open components/InterfaceManager.tsx.
-1. Import your component at the top. 
-2. Add a case to the renderDynamicInterface switch statement.
-
-```
-// components/InterfaceManager.tsx
-import { new_feature } from '@/features/new_feature/new_feature'; // 1. Import
-
-// ... inside renderDynamicInterface switch ...
-case 'new_feature': // 2. Map Intent
-  return <new_feature items={data.item} />;
-```
-
-### 4. Connect to the API
-
-Open app/api/assist/route.ts and import your rules.
-
-```
-import { NEW_FEATURE_RULES, NEW_FEATURE_JSON_FORMAT } from "@/features/new_feature/new_feature.prompt";
-```
-
-## Git Workflow
-To avoid conflicts, please follow this workflow:
-- Create a Branch: git checkout -b feature/your-feature-name 
-- Work: Follow the steps above. 
-- Push: git push origin feature/your-feature-name 
-- PR: Create a Pull Request to merge into main (or develop).
+This project is licensed under the MIT License — see the `LICENSE` file for details.

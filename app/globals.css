@@ -1,46 +1,49 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+    --background: #ffffff;
+    --foreground: #171717;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --font-sans: var(--font-geist-sans);
+    --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+    :root {
+        --background: #0a0a0a;
+        --foreground: #ededed;
+    }
 }
 
-html, body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden; /* Prevents scrolling */
-  overscroll-behavior: none; /* Prevents "bounce" effect on mobile */
-  user-select: none; /* Prevents accidental text highlighting */
-  -webkit-user-select: none;
-  touch-action: none; /* Prevents browser zoom/pan gestures */
+html,
+body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: Arial, Helvetica, sans-serif;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevents native browser scrolling */
+    overscroll-behavior: none; /* Prevents "bounce" effect on iOS */
+    user-select: none; /* Prevents text selection while interacting with AR */
+    -webkit-user-select: none;
+    touch-action: none; /* Disables browser gestures like pinch-zoom */
 }
 
+/* Ensures the 3D Canvas captures all touch events properly */
 canvas {
-  touch-action: none;
-  outline: none;
-  --webkit-tap-highlight-color: transparent;
+    touch-action: none;
+    outline: none;
+    -webkit-tap-highlight-color: transparent; /* Removes blue highlight on tap */
 }
 
+/* Ensures background video feeds do not block UI interactions */
 video {
-  pointer-events: none;
-  object-fit: cover;
+    pointer-events: none;
+    object-fit: cover;
 }

@@ -3,7 +3,11 @@
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 
-// 1. Dynamically import the ARScene
+/**
+ * Dynamically imports the AR Scene with Server-Side Rendering (SSR) disabled.
+ * This is crucial because WebXR and Three.js rely on the 'window' object,
+ * which is not available during server rendering.
+ */
 const ARScene = dynamic(() => import("@/components/ARScene"), {
   ssr: false,
   loading: () => (
@@ -16,6 +20,13 @@ const ARScene = dynamic(() => import("@/components/ARScene"), {
   ),
 });
 
+/**
+ * The main entry point for the application.
+ * It renders the full-screen AR experience.
+ *
+ * Note: The 'overflow-hidden' class on the container ensures that
+ * 3D gestures don't accidentally scroll the webpage on mobile devices.
+ */
 export default function Home() {
   return (
     <main className="h-screen w-screen relative overflow-hidden">

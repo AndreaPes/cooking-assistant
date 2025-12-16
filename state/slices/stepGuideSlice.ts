@@ -1,19 +1,61 @@
 import { StateCreator } from "zustand";
 import { SingleRecipe, AtomicStep } from "@/types/interfaces";
 
+/**
+ * Interface definition for the Step Guide Slice.
+ * Manages the navigation through the steps of the currently active recipe.
+ */
 export interface StepGuideSlice {
+  /** The recipe currently being cooked. Null if no recipe is active. */
   activeRecipe: SingleRecipe | null;
+  /** The index of the current step in the recipe's step array. -1 indicates overview mode. */
   currentStepIndex: number;
 
+  /**
+   * Loads a recipe into the guide and resets the step index.
+   * @param recipe - The recipe object to load.
+   */
   loadRecipe: (recipe: SingleRecipe) => void;
+
+  /**
+   * Advances to the next step in the recipe.
+   * Checks bounds to prevent overflowing the step array.
+   */
   nextStep: () => void;
+
+  /**
+   * Goes back to the previous step in the recipe.
+   * Checks bounds to prevent negative indices.
+   */
   prevStep: () => void;
+
+  /**
+   * Jumps directly to a specific step index.
+   * Clamps the target index between 0 and the maximum step count.
+   *
+   * @param stepNumber - The target step index.
+   */
   jumpToStep: (stepNumber: number) => void;
+
+  /**
+   * Stops the current cooking session and clears the active recipe.
+   */
   stopCooking: () => void;
 
+  /**
+   * Retrieves the current step object based on the current index.
+   * @returns The current AtomicStep or null if invalid.
+   */
   getCurrentStep: () => AtomicStep | null;
 }
 
+/**
+ * Slice creator for the Step Guide state.
+ * Implements logic for recipe navigation and step tracking.
+ *
+ * @param set - The Zustand set function.
+ * @param get - The Zustand get function.
+ */
 export const createStepGuideSlice: StateCreator<StepGuideSlice> = (
   set,
   get,
@@ -22,42 +64,26 @@ export const createStepGuideSlice: StateCreator<StepGuideSlice> = (
   currentStepIndex: -1,
 
   loadRecipe: (recipe) => {
-    console.log(
-      "👨‍🍳 Loading Recipe:",
-      recipe.title,
-      "Steps:",
-      recipe.steps?.length,
-    );
     set({ activeRecipe: recipe, currentStepIndex: -1 });
   },
 
   stopCooking: () => {
-    console.log("🛑 Stop Cooking");
     set({ activeRecipe: null, currentStepIndex: -1 });
   },
 
   nextStep: () =>
     set((state) => {
-      // 1. DEBUG
       if (!state.activeRecipe || !state.activeRecipe.steps) {
-        console.warn("⚠️ nextStep failed: No active recipe found in state");
         return {};
       }
 
       const totalSteps = state.activeRecipe.steps.length;
-
-      // 2. DEBUG
-      console.log(
-        `🦶 Request Next: Current=${state.currentStepIndex} / Total=${totalSteps}`,
-      );
       const nextIndex = Math.min(state.currentStepIndex + 1, totalSteps);
 
       if (nextIndex === state.currentStepIndex) {
-        console.log("Already at the end/limit.");
         return {};
       }
 
-      console.log(`Advancing to index: ${nextIndex}`);
       return { currentStepIndex: nextIndex };
     }),
 
@@ -65,8 +91,6 @@ export const createStepGuideSlice: StateCreator<StepGuideSlice> = (
     set((state) => {
       if (!state.activeRecipe) return {};
       const prevIndex = Math.max(state.currentStepIndex - 1, 0);
-
-      console.log(`⬅️ Prev Step: ${prevIndex}`);
       return { currentStepIndex: prevIndex };
     }),
 
@@ -77,7 +101,6 @@ export const createStepGuideSlice: StateCreator<StepGuideSlice> = (
       const maxIndex = state.activeRecipe.steps.length;
       const safeIndex = Math.max(0, Math.min(target, maxIndex));
 
-      console.log(`🦘 Jumping to step: ${safeIndex}`);
       return { currentStepIndex: safeIndex };
     }),
 

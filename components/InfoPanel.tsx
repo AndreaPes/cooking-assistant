@@ -2,16 +2,29 @@ import { Html } from "@react-three/drei";
 import { useEffect, useState } from "react";
 
 interface InfoPanelProps {
+  /** The text content to display within the panel. */
   text: string;
+  /** Optional callback function triggered when the panel closes (after timeout). */
   onClose?: () => void;
 }
 
+/**
+ * 3D Information Panel Component.
+ * Displays a floating glassmorphism card with instructions or AI responses.
+ *
+ * Features:
+ * - Automatically fades in upon mounting.
+ * - Auto-dismisses after 8 seconds.
+ * - Uses `Html` from `drei` to render accessible DOM elements within the 3D scene.
+ */
 export function InfoPanel({ text, onClose }: InfoPanelProps) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    // Trigger entry animation
     requestAnimationFrame(() => setVisible(true));
 
+    // Auto-close timer
     const timer = setTimeout(() => {
       setVisible(false);
       setTimeout(() => onClose && onClose(), 500);

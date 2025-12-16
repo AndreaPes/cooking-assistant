@@ -1,7 +1,7 @@
 import { AIResponse } from "@/types/interfaces";
 import { useCookingState } from "@/state/cookingState";
 
-// --- FEATURE COMPONENTS ---
+// Feature Components
 import { Timer } from "@/features/cooking/timer/Timer";
 import { StepGuide } from "@/features/cooking/steps/StepGuide";
 import { ShoppingList } from "@/features/shopping/ShoppingList";
@@ -11,24 +11,31 @@ import { SuggestRecipe } from "@/features/cooking/recipes/SuggestRecipe";
 import { InfoPanel } from "@/components/InfoPanel";
 
 interface ManagerProps {
+  /** The current active interface state determined by the AI intent. */
   activeInterface: AIResponse | null;
+  /** Optional temporary toast message to display. */
   toastMessage?: string | null;
 }
 
 /**
- * InterfaceManager
- * Acts as the "Window Manager" for the AR experience.
- * It handles the layout strategy based on a 3-Layer System:
+ * Window Manager for the AR Experience.
+ * Orchestrates the rendering of different UI layers based on the current state.
+ *
+ * Layers:
+ * 1. **Persistent**: Timers (always visible on the side).
+ * 2. **Main Interface**: The central component (Recipe, Fridge, Shopping List).
+ * 3. **Overlays**: Notifications, warnings, and chat bubbles.
  */
 export function InterfaceManager({
   activeInterface,
   toastMessage,
 }: ManagerProps) {
-  // Access global cooking state
   const { activeTimers, activeRecipe, currentStepIndex } = useCookingState();
 
-  // LAYER 1: PERSISTENT TIMERS
-  // Renders active timers on the right side of the field of view.
+  /**
+   * Layer 1: Renders the stack of active timers.
+   * Positioned on the right side of the field of view.
+   */
   const renderTimers = () => {
     return activeTimers.map((timer, index) => {
       const TIMER_GAP = 1.5;
@@ -51,8 +58,10 @@ export function InterfaceManager({
     });
   };
 
-  // LAYER 2: MAIN FOCUS INTERFACE
-  // Determines which major component should occupy the center stage.
+  /**
+   * Layer 2: Renders the primary focused interface.
+   * Handles switching between Suggestion, Shopping List, Fridge, and Step Guide.
+   */
   const renderMainInterface = () => {
     if (activeInterface) {
       const { type, data } = activeInterface;
@@ -74,6 +83,7 @@ export function InterfaceManager({
       }
     }
 
+    // Default Fallback: If a recipe is active, show the Step Guide
     if (activeRecipe && activeRecipe.steps && currentStepIndex >= 0) {
       return (
         <StepGuide
@@ -87,17 +97,17 @@ export function InterfaceManager({
     return null;
   };
 
-  // LAYER 3: OVERLAYS
-  // Renders temporary messages or info panels on top of the scene.
+  /**
+   * Layer 3: Renders temporary overlays and notifications.
+   * These elements appear on top of other 3D content.
+   */
   const renderOverlays = () => {
     return (
       <>
-        {/* 1. Chat / Instructions Panel */}
         {activeInterface?.type === "instruction" && (
           <InfoPanel text={activeInterface.data.text || ""} />
         )}
 
-        {/* 2. Success/Error Badges */}
         {(activeInterface?.type === "success" ||
           activeInterface?.type === "error") && (
           <NotificationBadge
@@ -106,7 +116,6 @@ export function InterfaceManager({
           />
         )}
 
-        {/* 3. System Toasts */}
         {toastMessage && (
           <NotificationBadge label={toastMessage} variant="success" />
         )}

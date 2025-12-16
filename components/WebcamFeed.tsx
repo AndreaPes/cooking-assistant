@@ -1,9 +1,17 @@
 import { RefObject, useEffect } from "react";
 
 interface WebcamFeedProps {
+  /** Reference to the video HTML element where the stream will be attached. */
   videoRef: RefObject<HTMLVideoElement | null>;
 }
 
+/**
+ * 2D Background Component for Video Passthrough.
+ * Connects to the user's camera via `navigator.mediaDevices.getUserMedia`
+ * and streams the feed to a video element.
+ *
+ * This serves as the background layer for non-immersive AR modes (e.g., on mobile or desktop).
+ */
 export function WebcamFeed({ videoRef }: WebcamFeedProps) {
   useEffect(() => {
     let currentStream: MediaStream | null = null;
@@ -33,6 +41,7 @@ export function WebcamFeed({ videoRef }: WebcamFeedProps) {
     setupCamera();
 
     return () => {
+      // Cleanup: Stop all tracks and clear the video source
       if (currentStream) {
         currentStream.getTracks().forEach((track) => track.stop());
       }
