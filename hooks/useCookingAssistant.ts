@@ -64,7 +64,7 @@ export function useCookingAssistant(
   // --- Voice & Refs ---
   const { isListening, transcript, startListening, stopListening } =
     useVoiceInput();
-  const { detected: wakeWordDetected } = useWakeWord();
+  // const { detected: wakeWordDetected } = useWakeWord();
 
   const lastProcessedText = useRef("");
   const isProcessingRef = useRef(false);
@@ -428,17 +428,17 @@ export function useCookingAssistant(
   // ===========================================================================
 
   // 1. Wake Word Trigger Logic
-  useEffect(() => {
-    if (
-      wakeWordDetected &&
-      status === AssistantStatus.IDLE &&
-      !isProcessingRef.current &&
-      !isListening
-    ) {
-      console.log("Triggering listening due to wake word");
-      handleMicClick();
-    }
-  }, [wakeWordDetected, status, isListening]);
+  // useEffect(() => {
+  //   if (
+  //     wakeWordDetected &&
+  //     status === AssistantStatus.IDLE &&
+  //     !isProcessingRef.current &&
+  //     !isListening
+  //   ) {
+  //     console.log("Triggering listening due to wake word");
+  //     handleMicClick();
+  //   }
+  // }, [wakeWordDetected, status, isListening]);
 
   // 2. Status Sync (Visual Feedback)
   useEffect(() => {

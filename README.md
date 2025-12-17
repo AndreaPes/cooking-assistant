@@ -104,7 +104,3 @@ npx prisma db push
 npm run dev
 ```
 open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-## License
-
-This project is licensed under the MIT License — see the `LICENSE` file for details.
