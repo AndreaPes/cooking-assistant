@@ -98,7 +98,7 @@ export function ControlPanel({
           {/* MICROPHONE BUTTON */}
           <button
             onClick={onMicClick}
-            onPointerDown={(e) => e.stopPropagation()}
+            // onPointerDown={(e) => e.stopPropagation()}
             className={`
               w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl
               ${micConfig.style}
