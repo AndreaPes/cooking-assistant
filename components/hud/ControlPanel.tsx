@@ -67,8 +67,8 @@ export function ControlPanel({
 
   return (
     // Position: Lower center (Dashboard view), tilted slightly upwards
-    <group position={[4, 5, -4]} rotation={[0, -0.5, 0]}>
-      <Html transform occlude center scale={0.3}>
+    <group position={[0, -0.2, -0.6]} rotation={[0, -0.5, 0]}>
+      <Html transform occlude={false} zIndexRange={[100, 0]} center scale={0.2}>
         <div className="flex items-center gap-6 p-4 rounded-full bg-gray-900/80 backdrop-blur-xl border border-white/10 shadow-2xl">
           {/* CAMERA TOGGLE SWITCH */}
           <button
@@ -98,6 +98,7 @@ export function ControlPanel({
           {/* MICROPHONE BUTTON */}
           <button
             onClick={onMicClick}
+            onPointerDown={(e) => e.stopPropagation()}
             className={`
               w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl
               ${micConfig.style}

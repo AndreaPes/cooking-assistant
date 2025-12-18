@@ -16,6 +16,7 @@ import { useAssistantState, AssistantStatus } from "@/state/assistantState";
 export function useVoiceInput() {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   // Ref to store the active SpeechRecognition instance
   const recognitionRef = useRef<any>(null);
@@ -53,6 +54,7 @@ export function useVoiceInput() {
     recognition.onstart = () => {
       setIsListening(true);
       setTranscript("");
+      setError(null);
       setStatus(AssistantStatus.LISTENING);
     };
 
@@ -70,6 +72,7 @@ export function useVoiceInput() {
     // 4. Error Handling
     recognition.onerror = (event: any) => {
       console.error("Speech recognition error", event.error);
+      setError(event.error);
       setIsListening(false);
       setStatus(AssistantStatus.IDLE);
     };
@@ -91,5 +94,5 @@ export function useVoiceInput() {
     }
   }, []);
 
-  return { isListening, transcript, startListening, stopListening };
+  return { isListening, transcript, startListening, stopListening, error };
 }

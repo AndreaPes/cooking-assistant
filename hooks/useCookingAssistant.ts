@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, RefObject } from "react";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
-import { useWakeWord } from "@/hooks/useWakeWord";
+// import { useWakeWord } from "@/hooks/useWakeWord";
 import { useCookingState } from "@/state/cookingState";
 import { AssistantStatus, useAssistantState } from "@/state/assistantState";
 import { useFridgeInventoryState } from "@/state/slices/fridgeInventorySlice";
@@ -62,8 +62,21 @@ export function useCookingAssistant(
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // --- Voice & Refs ---
-  const { isListening, transcript, startListening, stopListening } =
-    useVoiceInput();
+  const {
+    isListening,
+    transcript,
+    startListening,
+    stopListening,
+    error: voiceError,
+  } = useVoiceInput();
+
+  // DEBUG: Log voice input errors
+  useEffect(() => {
+    if (voiceError) {
+      console.error("❌ Voice Input Error detected:", voiceError);
+      setToastMessage(`Mic Error: ${voiceError}`);
+    }
+  }, [voiceError]);
   // const { detected: wakeWordDetected } = useWakeWord();
 
   const lastProcessedText = useRef("");
@@ -440,6 +453,13 @@ export function useCookingAssistant(
   //   }
   // }, [wakeWordDetected, status, isListening]);
 
+  // DEBUG: Monitor transcript updates
+  useEffect(() => {
+    if (transcript) {
+      console.log("🗣️ Transcript updated:", transcript);
+    }
+  }, [transcript]);
+
   // 2. Status Sync (Visual Feedback)
   useEffect(() => {
     if (isListening) setStatus(AssistantStatus.LISTENING);
@@ -480,7 +500,10 @@ export function useCookingAssistant(
    * - If PROCESSING: Ignores click (to prevent interrupting API calls).
    */
   const handleMicClick = useCallback(() => {
-    if (status === AssistantStatus.PROCESSING) return;
+    if (status === AssistantStatus.PROCESSING) {
+      console.warn("⚠️ Ignored mic click: System is PROCESSING");
+      return;
+    }
 
     if (isListening) {
       stopListening();
@@ -489,6 +512,16 @@ export function useCookingAssistant(
     } else {
       lastProcessedText.current = "";
       setStatus(AssistantStatus.LISTENING);
+
+      if (
+        !("webkitSpeechRecognition" in window) &&
+        !("SpeechRecognition" in window)
+      ) {
+        console.error("❌ Browser does not support Speech Recognition");
+        setToastMessage("Browser Not Supported");
+        return;
+      }
+
       startListening();
       console.log("🎙️ Mic started manually");
     }
