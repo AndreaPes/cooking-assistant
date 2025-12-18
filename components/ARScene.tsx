@@ -7,7 +7,6 @@ import { OrbitControls } from "@react-three/drei";
 
 import { useCookingAssistant } from "@/hooks/useCookingAssistant";
 import { InterfaceManager } from "@/components/InterfaceManager";
-import { WebcamFeed } from "@/components/WebcamFeed";
 import { NotificationBadge } from "@/components/hud/NotificationBadge";
 import { ControlPanel } from "@/components/hud/ControlPanel";
 
@@ -15,7 +14,6 @@ const store = createXRStore();
 
 export default function ARScene() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isCameraMode, setIsCameraMode] = useState(true);
 
   // Stato sincronizzato con la sessione XR
   const [isInAR, setIsInAR] = useState(false);
@@ -41,13 +39,6 @@ export default function ARScene() {
 
   return (
     <div className="h-full w-full relative bg-black">
-      {/* LAYER 2D: Webcam (Solo fuori dall'AR) */}
-      {isCameraMode && !isInAR && (
-        <div className="absolute inset-0 z-0">
-          <WebcamFeed videoRef={videoRef} />
-        </div>
-      )}
-
       {/* Tasto Enter AR (Sparisce in AR) */}
       {!isInAR && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-50">
@@ -69,12 +60,7 @@ export default function ARScene() {
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
 
-          <ControlPanel
-            status={status}
-            isCameraMode={isCameraMode}
-            onToggleCamera={() => setIsCameraMode(!isCameraMode)}
-            onMicClick={handleMicClick}
-          />
+          <ControlPanel status={status} onMicClick={handleMicClick} />
 
           {toastMessage && (
             <NotificationBadge label={toastMessage} variant="success" />

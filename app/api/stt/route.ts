@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     // 🎤 SPEECH → TEXT
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(tempPath),
-      model: "gpt-4o-transcribe", // oppure "whisper-1"
+      model: "gpt-4o-transcribe",
     });
 
     fs.unlink(tempPath, () => {});
@@ -41,9 +41,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("STT error:", error);
-    return NextResponse.json(
-      { error: "STT failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "STT failed" }, { status: 500 });
   }
 }
