@@ -26,6 +26,8 @@ export default function ARScene() {
   // Stato per sapere se siamo in AR (per nascondere elementi 2D)
   const [isInAR, setIsInAR] = useState(false);
 
+  const [red, setRed] = useState(false);
+
   const {
     status,
     isListening,
@@ -35,7 +37,6 @@ export default function ARScene() {
     handleMicClick,
   } = useCookingAssistant(videoRef);
 
-  // @ts-ignore
   return (
     // Sfondo nero per evitare flash bianchi nel visore prima del caricamento
     <div className="h-full w-full relative bg-black">
@@ -62,27 +63,16 @@ export default function ARScene() {
       )}
 
       {/* LAYER 3D: Tutto ciò che è qui dentro è visibile in AR */}
-      <Canvas gl={{ alpha: true }}>
-        <OrbitControls makeDefault />
-
-        <XR store={store} onSessionEnd={() => setIsInAR(false)}>
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} />
-
-          <ControlPanel
-            status={status}
-            isCameraMode={isCameraMode}
-            onToggleCamera={() => setIsCameraMode(!isCameraMode)}
-            onMicClick={handleMicClick}
-          />
-
-          {/* Nota: NotificationBadge e InterfaceManager contengono ancora HTML. 
-              Se funzionano, bene. Se no, convertiremo anche quelli nel prossimo step. */}
-          {toastMessage && (
-            <NotificationBadge label={toastMessage} variant="success" />
-          )}
-
-          <InterfaceManager activeInterface={aiState} />
+      <Canvas>
+        <XR store={store}>
+          <mesh
+            pointerEventsType={{ deny: "grab" }}
+            onClick={() => setRed(!red)}
+            position={[0, 1, -1]}
+          >
+            <boxGeometry />
+            <meshBasicMaterial color={red ? "red" : "blue"} />
+          </mesh>
         </XR>
       </Canvas>
     </div>
