@@ -67,7 +67,7 @@ export function ControlPanel({
 
   return (
     // Position: Lower center (Dashboard view), tilted slightly upwards
-    <group position={[0, -0.2, -0.6]} rotation={[0, -0.5, 0]}>
+    <group position={[0, -0.2, -0.6]} rotation={[-0.4, 0, 0]}>
       <Html transform occlude={false} zIndexRange={[100, 0]} center scale={0.2}>
         <div className="flex items-center gap-6 p-4 rounded-full bg-gray-900/80 backdrop-blur-xl border border-white/10 shadow-2xl">
           {/* CAMERA TOGGLE SWITCH */}
