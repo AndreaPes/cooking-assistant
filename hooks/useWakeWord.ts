@@ -13,7 +13,7 @@ const ACCESS_KEY = process.env.NEXT_PUBLIC_PICOVOICE_KEY;
  */
 const KEYWORD = {
   publicPath: "/wake_word.ppn",
-  label: "Hei Mirage",
+  label: "Hey Mira",
   sensitivity: 0.7,
 };
 
@@ -55,7 +55,7 @@ export function useWakeWord() {
   useEffect(() => {
     if (isLoaded && !isListening) {
       start().catch((err) => console.error("Porcupine Start Failed:", err));
-      console.log("🦔 Porcupine Listening for 'Hei Mirage'...");
+      console.log("🦔 Porcupine Listening for 'Hey Mira'...");
     }
   }, [isLoaded, isListening, start]);
 

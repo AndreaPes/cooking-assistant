@@ -1,95 +1,95 @@
 import { useState, useCallback, useRef } from "react";
 import { useAssistantState, AssistantStatus } from "@/state/assistantState";
 
-/**
- * Custom Hook: useVoiceInput
- * --------------------------
- * Manages the browser's native SpeechRecognition API (Web Speech API).
- * Provides methods to start and stop listening, and exposes the real-time transcript.
- *
- * @returns An object containing:
- * - `isListening`: Boolean indicating if the microphone is active.
- * - `transcript`: The string text captured from the user's speech.
- * - `startListening`: Function to activate the microphone.
- * - `stopListening`: Function to manually stop the microphone (triggers result processing).
- */
 export function useVoiceInput() {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
 
-  // Ref to store the active SpeechRecognition instance
-  const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const { setStatus } = useAssistantState();
 
   /**
-   * Initializes and starts the Speech Recognition engine.
+   * Start recording audio from the microphone.
+   * MUST be called from a user gesture (click / tap).
    */
-  const startListening = useCallback(() => {
+  const startListening = useCallback(async () => {
     if (typeof window === "undefined") return;
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
 
-    if (!SpeechRecognition) {
-      alert("Browser does not support speech recognition.");
-      return;
-    }
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm",
+      });
 
-    // Abort any previous instance to prevent conflicts
-    if (recognitionRef.current) {
-      recognitionRef.current.abort();
-    }
+      audioChunksRef.current = [];
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false; // Capture one sentence at a time
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
 
-    // --- Event Handlers ---
+      mediaRecorder.onstop = async () => {
+        setIsListening(false);
+        setStatus(AssistantStatus.PROCESSING);
 
-    // 1. Microphone Activated
-    recognition.onstart = () => {
-      setIsListening(true);
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
+
+        try {
+          const formData = new FormData();
+          formData.append("file", audioBlob, "speech.webm");
+
+          const res = await fetch("/api/stt", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!res.ok) {
+            throw new Error("STT request failed");
+          }
+
+          const data = await res.json();
+          setTranscript(data.text || "");
+        } catch (err) {
+          console.error("STT error:", err);
+          setTranscript("");
+        } finally {
+          setStatus(AssistantStatus.IDLE);
+        }
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+
       setTranscript("");
+      setIsListening(true);
       setStatus(AssistantStatus.LISTENING);
-    };
-
-    // 2. Microphone Deactivated (Silence detected or manual stop)
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    // 3. Transcription Received
-    recognition.onresult = (event: any) => {
-      const text = event.results[0][0].transcript;
-      setTranscript(text);
-    };
-
-    // 4. Error Handling
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error);
-      setIsListening(false);
+    } catch (err) {
+      console.error("Microphone error:", err);
       setStatus(AssistantStatus.IDLE);
-    };
-
-    // Store instance and Start
-    recognitionRef.current = recognition;
-    recognition.start();
+    }
   }, [setStatus]);
 
   /**
-   * Manually stops the Speech Recognition engine.
-   * This tells the browser "User has finished speaking", which will likely
-   * trigger 'onresult' if speech was captured, or 'onend' immediately.
+   * Stop recording and trigger transcription.
    */
   const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+    if (mediaRecorderRef.current && isListening) {
+      mediaRecorderRef.current.stop();
     }
-  }, []);
+  }, [isListening]);
 
-  return { isListening, transcript, startListening, stopListening };
+  return {
+    isListening,
+    transcript,
+    startListening,
+    stopListening,
+  };
 }
