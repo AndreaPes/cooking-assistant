@@ -13,26 +13,18 @@ import { ControlPanel } from "@/components/hud/ControlPanel";
 
 /**
  * XR Store Configuration.
- * Disables DOM Overlay to ensure all controls (like Mic/Camera toggles)
- * are rendered within the 3D scene, making them accessible in VR/AR headsets.
+ * -----------------------
+ * DOM OVERLAY RIMOSSO: Ora usiamo UI 3D nativa.
+ * Questo garantisce visibilità perfetta in AR (Passthrough) e VR.
  */
-const store = createXRStore({
-  domOverlay: false,
-});
+const store = createXRStore();
 
-/**
- * Root Component for the Augmented Reality Experience.
- *
- * Architecture:
- * - **2D Layer**: Renders the webcam feed for mobile/desktop devices and debug overlays.
- * - **3D Layer (Canvas)**: Renders the immersive WebXR content using React Three Fiber.
- *
- * This component orchestrates the connection between the "Cooking Brain" (hooks)
- * and the visual presentation.
- */
 export default function ARScene() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCameraMode, setIsCameraMode] = useState(true);
+
+  // Stato per sapere se siamo in AR (per nascondere elementi 2D)
+  const [isInAR, setIsInAR] = useState(false);
 
   const {
     status,
@@ -43,45 +35,37 @@ export default function ARScene() {
     handleMicClick,
   } = useCookingAssistant(videoRef);
 
+  // @ts-ignore
   return (
-    <div
-      className={`h-full w-full relative ${isCameraMode ? "bg-transparent" : "bg-gray-900"}`}
-    >
-      {/* 2D Background Layer (Mobile/Desktop Only) */}
-      {isCameraMode && (
+    // Sfondo nero per evitare flash bianchi nel visore prima del caricamento
+    <div className="h-full w-full relative bg-black">
+      {/* LAYER 2D: Webcam & Debug (Visibile solo su PC/Mobile, MAI nel visore AR) */}
+      {isCameraMode && !isInAR && (
         <div className="absolute inset-0 z-0">
           <WebcamFeed videoRef={videoRef} />
         </div>
       )}
 
-      {/* Debug Subtitles */}
-      {(transcript || isListening) && (
-        <div className="absolute bottom-12 left-0 w-full flex justify-center z-40 pointer-events-none">
-          <div className="bg-black/60 backdrop-blur-md border border-white/10 text-white px-8 py-4 rounded-3xl text-xl font-medium shadow-2xl max-w-[85%] text-center">
-            {transcript ? (
-              <span>&quot;{transcript}&quot;</span>
-            ) : (
-              <span className="text-white/50 italic">Listening...</span>
-            )}
-          </div>
+      {/* Tasto Enter AR (2D HTML, sparisce quando entri in AR) */}
+      {!isInAR && (
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+          <button
+            onClick={() => {
+              store.enterAR();
+              setIsInAR(true);
+            }}
+            className="px-6 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white font-bold hover:bg-white/20 transition shadow-xl"
+          >
+            👓 Enter AR
+          </button>
         </div>
       )}
 
-      {/* Enter AR Trigger Button */}
-      <div className="absolute top-4 left-4 z-50">
-        <button
-          onClick={() => store.enterAR()}
-          className="px-4 py-2 bg-white/10 backdrop-blur border border-white/20 rounded-full text-white font-bold hover:bg-white/20 transition"
-        >
-          Enter AR
-        </button>
-      </div>
-
-      {/* 3D Immersive Layer */}
+      {/* LAYER 3D: Tutto ciò che è qui dentro è visibile in AR */}
       <Canvas gl={{ alpha: true }}>
         <OrbitControls makeDefault />
 
-        <XR store={store}>
+        <XR store={store} onSessionEnd={() => setIsInAR(false)}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
 
@@ -92,6 +76,8 @@ export default function ARScene() {
             onMicClick={handleMicClick}
           />
 
+          {/* Nota: NotificationBadge e InterfaceManager contengono ancora HTML. 
+              Se funzionano, bene. Se no, convertiremo anche quelli nel prossimo step. */}
           {toastMessage && (
             <NotificationBadge label={toastMessage} variant="success" />
           )}

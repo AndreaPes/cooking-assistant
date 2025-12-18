@@ -1,114 +1,137 @@
-import { Html } from "@react-three/drei";
-import { Mic, Camera, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Text, RoundedBox } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import { AssistantStatus } from "@/state/assistantState";
+import { Mesh } from "three";
 
 interface ControlPanelProps {
-  /**
-   * Current status of the AI Assistant (Idle, Listening, Processing).
-   * Determines the color and animation of the microphone button.
-   */
   status: AssistantStatus;
-
-  /**
-   * Whether the background webcam feed is currently active.
-   */
   isCameraMode: boolean;
-
-  /**
-   * Toggles the webcam feed on/off.
-   */
   onToggleCamera: () => void;
-
-  /**
-   * Activates the voice input.
-   */
   onMicClick: () => void;
 }
 
-/**
- * 3D Control Panel (HUD)
- * ----------------------
- * Renders the primary controls (Microphone and Camera Toggle) as floating 3D objects
- * within the AR scene. Positioned dashboard-style relative to the user.
- */
 export function ControlPanel({
   status,
   isCameraMode,
   onToggleCamera,
   onMicClick,
 }: ControlPanelProps) {
-  /**
-   * Determines the visual style of the microphone button based on AI status.
-   */
-  const getMicConfig = () => {
-    switch (status) {
-      case AssistantStatus.LISTENING:
-        return {
-          style:
-            "bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.6)] scale-110",
-          icon: <Mic className="w-8 h-8 animate-pulse" />,
-        };
-      case AssistantStatus.PROCESSING:
-        return {
-          style:
-            "bg-yellow-400 text-black shadow-[0_0_30px_rgba(250,204,21,0.6)]",
-          icon: <Loader2 className="w-8 h-8 animate-spin" />,
-        };
-      default: // IDLE
-        return {
-          style:
-            "bg-white/10 text-white hover:bg-white/20 border border-white/20 backdrop-blur-md",
-          icon: <Mic className="w-8 h-8" />,
-        };
+  // Riferimenti alle mesh per le animazioni
+  const micRef = useRef<Mesh>(null);
+  const camRef = useRef<Mesh>(null);
+
+  // Stati locali per effetto Hover (quando il raggio del controller ci passa sopra)
+  const [micHovered, setMicHovered] = useState(false);
+  const [camHovered, setCamHovered] = useState(false);
+
+  // LOOP DI ANIMAZIONE (60 FPS)
+  useFrame((state) => {
+    // 1. Animazione Pulsazione Microfono (quando ascolta)
+    if (micRef.current) {
+      let targetScale = micHovered ? 1.2 : 1.0;
+
+      if (status === AssistantStatus.LISTENING) {
+        // Crea un battito cardiaco usando il tempo
+        const pulse = 1 + Math.sin(state.clock.elapsedTime * 10) * 0.1;
+        targetScale *= pulse;
+      }
+
+      // Interpolazione fluida (Lerp) verso la dimensione target
+      micRef.current.scale.lerp(
+        { x: targetScale, y: targetScale, z: targetScale } as any,
+        0.1,
+      );
     }
+
+    // 2. Animazione Hover Camera
+    if (camRef.current) {
+      const targetScale = camHovered ? 1.2 : 1.0;
+      camRef.current.scale.lerp(
+        { x: targetScale, y: targetScale, z: targetScale } as any,
+        0.1,
+      );
+    }
+  });
+
+  // Colore dinamico del microfono
+  const getMicColor = () => {
+    if (status === AssistantStatus.LISTENING) return "#ef4444"; // Rosso
+    if (status === AssistantStatus.PROCESSING) return "#f59e0b"; // Giallo
+    return "#374151"; // Grigio scuro (Idle)
   };
 
-  const micConfig = getMicConfig();
-
   return (
-    // Position: Lower center (Dashboard view), tilted slightly upwards
-    <group position={[0, -0.2, -0.6]} rotation={[-0.4, 0, 0]}>
-      <Html transform occlude={false} zIndexRange={[100, 0]} center scale={0.2}>
-        <div className="flex items-center gap-6 p-4 rounded-full bg-gray-900/80 backdrop-blur-xl border border-white/10 shadow-2xl">
-          {/* CAMERA TOGGLE SWITCH */}
-          <button
-            onClick={onToggleCamera}
-            className={`
-              relative w-16 h-9 rounded-full p-1 transition-colors duration-300 ease-in-out shadow-lg flex items-center
-              ${isCameraMode ? "bg-green-500" : "bg-gray-600/80 backdrop-blur"}
-            `}
-            aria-label={isCameraMode ? "Turn Camera Off" : "Turn Camera On"}
-          >
-            {/* Knob with Icon */}
-            <div
-              className={`
-                w-7 h-7 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-[cubic-bezier(0.4,0.0,0.2,1)] flex items-center justify-center
-                ${isCameraMode ? "translate-x-7" : "translate-x-0"}
-              `}
-            >
-              <Camera
-                className={`w-4 h-4 ${isCameraMode ? "text-green-600" : "text-gray-500"}`}
-              />
-            </div>
-          </button>
+    // POSIZIONE HUD: Basso centrale, ruotato verso il viso
+    <group position={[0, -0.25, -0.6]} rotation={[-0.4, 0, 0]}>
+      {/* --- SFONDO (Vetro scuro) --- */}
+      <RoundedBox args={[0.35, 0.12, 0.01]} radius={0.05} smoothness={4}>
+        <meshStandardMaterial
+          color="#111827"
+          transparent
+          opacity={0.8}
+          roughness={0.2}
+          metalness={0.5}
+        />
+      </RoundedBox>
 
-          {/* VERTICAL DIVIDER */}
-          <div className="w-px h-10 bg-white/10" />
+      {/* --- BOTTONE CAMERA (Sinistra) --- */}
+      <group position={[-0.08, 0, 0.02]}>
+        {/* Cerchio cliccabile */}
+        <mesh
+          ref={camRef}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleCamera();
+          }}
+          onPointerOver={() => setCamHovered(true)}
+          onPointerOut={() => setCamHovered(false)}
+        >
+          <circleGeometry args={[0.035, 32]} />
+          <meshStandardMaterial color={isCameraMode ? "#22c55e" : "#4b5563"} />
+        </mesh>
+        {/* Icona (Emoji Testo 3D) */}
+        <Text
+          position={[0, 0, 0.01]}
+          fontSize={0.03}
+          anchorX="center"
+          anchorY="middle"
+        >
+          📷
+        </Text>
+      </group>
 
-          {/* MICROPHONE BUTTON */}
-          <button
-            onClick={onMicClick}
-            // onPointerDown={(e) => e.stopPropagation()}
-            className={`
-              w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl
-              ${micConfig.style}
-            `}
-            aria-label="Activate Voice Assistant"
-          >
-            {micConfig.icon}
-          </button>
-        </div>
-      </Html>
+      {/* --- DIVISORE (Linea bianca) --- */}
+      <mesh position={[0, 0, 0.02]}>
+        <planeGeometry args={[0.002, 0.08]} />
+        <meshBasicMaterial color="white" opacity={0.2} transparent />
+      </mesh>
+
+      {/* --- BOTTONE MICROFONO (Destra) --- */}
+      <group position={[0.08, 0, 0.02]}>
+        {/* Cerchio cliccabile */}
+        <mesh
+          ref={micRef}
+          onClick={(e) => {
+            e.stopPropagation();
+            onMicClick();
+          }}
+          onPointerOver={() => setMicHovered(true)}
+          onPointerOut={() => setMicHovered(false)}
+        >
+          <circleGeometry args={[0.045, 32]} />
+          <meshStandardMaterial color={getMicColor()} />
+        </mesh>
+        {/* Icona */}
+        <Text
+          position={[0, 0, 0.01]}
+          fontSize={0.04}
+          anchorX="center"
+          anchorY="middle"
+        >
+          🎙️
+        </Text>
+      </group>
     </group>
   );
 }
