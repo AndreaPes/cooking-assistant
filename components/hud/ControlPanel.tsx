@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { RoundedBox, Text } from "@react-three/drei";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { AssistantStatus } from "@/state/assistantState";
-import { Mesh, Group } from "three";
+import { Group, Mesh, Quaternion, Vector3 } from "three";
 
 interface ControlPanelProps {
   status: AssistantStatus;
@@ -10,24 +10,40 @@ interface ControlPanelProps {
 }
 
 export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
+  const rootRef = useRef<Group>(null);
   const micRef = useRef<Mesh>(null);
-  const groupRef = useRef<Group>(null);
   const [micHovered, setMicHovered] = useState(false);
-  const { camera } = useThree();
 
-  // LOOP DI ANIMAZIONE (60 FPS)
+  // temp objects (avoid allocations)
+  const tmpPos = useRef(new Vector3()).current;
+  const tmpQuat = useRef(new Quaternion()).current;
+
+  const getMicColor = () => {
+    if (status === AssistantStatus.LISTENING) return "#ef4444";
+    if (status === AssistantStatus.PROCESSING) return "#f59e0b";
+    return "#374151";
+  };
+
   useFrame((state) => {
-    // 1. Segui la camera (SOLO posizione, NON rotazione)
-    if (groupRef.current) {
-      groupRef.current.position.copy(camera.position);
-      // NON copiamo la rotazione, così rimane fisso nello spazio
+    // IMPORTANT: in XR, state.camera can be an ArrayCamera
+    const camAny: any = state.camera;
+    const cam: any = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
+
+    // 1) Lock HUD to headset pose (world position + world rotation)
+    if (rootRef.current) {
+      cam.getWorldPosition(tmpPos);
+      cam.getWorldQuaternion(tmpQuat);
+
+      rootRef.current.position.copy(tmpPos);
+      rootRef.current.quaternion.copy(tmpQuat);
+
+      rootRef.current.frustumCulled = false;
     }
 
-    // 2. Animazione del bottone
+    // 2) Mic animation
     if (micRef.current) {
       let targetScale = micHovered ? 1.1 : 1.0;
 
-      // Animazione battito cardiaco quando ascolta
       if (status === AssistantStatus.LISTENING) {
         const pulse = 1 + Math.sin(state.clock.elapsedTime * 12) * 0.1;
         targetScale *= pulse;
@@ -40,22 +56,11 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
     }
   });
 
-  const getMicColor = () => {
-    if (status === AssistantStatus.LISTENING) return "#ef4444"; // Rosso
-    if (status === AssistantStatus.PROCESSING) return "#f59e0b"; // Giallo
-    return "#374151"; // Grigio scuro (Idle)
-  };
-
   return (
-    // Gruppo che segue la camera
-    <group ref={groupRef}>
-      {/* Offset relativo alla camera: 
-          X: 0.5m a destra
-          Y: -0.3m sotto l'altezza occhi
-          Z: -1.2m davanti all'utente
-      */}
-      <group position={[0.5, -0.3, -1.2]} rotation={[0, 0, 0]}>
-        {/* 1. SFONDO (Pillola di vetro) */}
+    <group ref={rootRef} frustumCulled={false} renderOrder={999}>
+      {/* Camera-local offset (TOP-RIGHT). Tweak as you want. */}
+      <group position={[0.28, 0.18, -0.55]} renderOrder={999}>
+        {/* Background */}
         <RoundedBox args={[0.18, 0.18, 0.03]} radius={0.09} smoothness={4}>
           <meshStandardMaterial
             color="#111827"
@@ -63,45 +68,57 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
             opacity={0.8}
             roughness={0.2}
             metalness={0.5}
+            depthTest={false}
+            depthWrite={false}
           />
         </RoundedBox>
 
-        {/* 2. GRUPPO BOTTONE VISIVO */}
-        <group position={[0, 0, 0.02]} rotation={[-Math.PI / 2, 0, 0]}>
-          {/* Cerchio Colorato (Ruotato per guardare verso l'utente) */}
-          <mesh ref={micRef}>
+        {/* Mic visuals */}
+        <group position={[0, 0, 0.02]} renderOrder={999}>
+          <mesh ref={micRef} renderOrder={999}>
             <circleGeometry args={[0.065, 32]} />
-            <meshStandardMaterial color={getMicColor()} side={2} />
+            <meshStandardMaterial
+              color={getMicColor()}
+              depthTest={false}
+              depthWrite={false}
+            />
           </mesh>
 
-          {/* Icona 3D (Testo) */}
           <Text
-            position={[0, 0.01, 0]}
+            position={[0, 0, 0.01]}
             fontSize={0.06}
             color="white"
             anchorX="center"
             anchorY="middle"
-            rotation={[Math.PI / 2, 0, 0]}
+            renderOrder={999}
           >
             🎙️
           </Text>
         </group>
 
-        {/* 3. COLLIDER INVISIBILE (HIT BOX) */}
+        {/* Clickable hitbox (transparent, NOT visible=false) */}
         <mesh
-          position={[0, 0, 0.05]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          visible={false}
+          position={[0, 0, 0.06]}
+          renderOrder={1000}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onMicClick();
+          }}
           onClick={(e) => {
             e.stopPropagation();
-            console.log("🖱️ 3D Button Clicked!");
             onMicClick();
           }}
           onPointerOver={() => setMicHovered(true)}
           onPointerOut={() => setMicHovered(false)}
         >
-          <circleGeometry args={[0.09, 16]} />
-          <meshBasicMaterial />
+          {/* Big easy target for XR rays */}
+          <planeGeometry args={[0.22, 0.22]} />
+          <meshBasicMaterial
+            transparent
+            opacity={0}
+            depthTest={false}
+            depthWrite={false}
+          />
         </mesh>
       </group>
     </group>
