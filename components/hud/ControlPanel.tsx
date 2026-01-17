@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { RoundedBox, Text } from "@react-three/drei";
+import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { AssistantStatus } from "@/state/assistantState";
 import { Mesh, Group } from "three";
@@ -11,22 +11,23 @@ interface ControlPanelProps {
 
 export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
   const micRef = useRef<Mesh>(null);
-  const rootRef = useRef<Group>(null);
+  const groupRef = useRef<Group>(null);
   const [micHovered, setMicHovered] = useState(false);
   const { camera } = useThree();
 
+  // LOOP DI ANIMAZIONE (60 FPS)
   useFrame((state) => {
-    // HUD: lock to camera (Quest)
-    if (rootRef.current) {
-      rootRef.current.position.copy(camera.position);
-      rootRef.current.quaternion.copy(camera.quaternion);
-      rootRef.current.frustumCulled = false;
+    // 1. Segui la camera (posizione E rotazione)
+    if (groupRef.current) {
+      groupRef.current.position.copy(camera.position);
+      groupRef.current.quaternion.copy(camera.quaternion);
     }
 
-    // Mic animation
+    // 2. Animazione del bottone
     if (micRef.current) {
       let targetScale = micHovered ? 1.1 : 1.0;
 
+      // Animazione battito cardiaco quando ascolta
       if (status === AssistantStatus.LISTENING) {
         const pulse = 1 + Math.sin(state.clock.elapsedTime * 12) * 0.1;
         targetScale *= pulse;
@@ -40,74 +41,68 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
   });
 
   const getMicColor = () => {
-    if (status === AssistantStatus.LISTENING) return "#ef4444";
-    if (status === AssistantStatus.PROCESSING) return "#f59e0b";
-    return "#374151";
+    if (status === AssistantStatus.LISTENING) return "#ef4444"; // Rosso
+    if (status === AssistantStatus.PROCESSING) return "#f59e0b"; // Giallo
+    return "#374151"; // Grigio scuro (Idle)
   };
 
   return (
-    <group ref={rootRef} frustumCulled={false} renderOrder={999}>
-      {/* Corner offset (camera-local). Tweak these. */}
-      <group position={[0.28, 0.18, -0.55]} renderOrder={999}>
-        {/* Background */}
-        <RoundedBox args={[0.18, 0.18, 0.03]} radius={0.09} smoothness={4}>
+    // Gruppo che segue la camera
+    <group ref={groupRef}>
+      {/* Offset relativo alla camera: 
+          X: 0.5m a destra
+          Y: -0.3m sotto l'altezza occhi
+          Z: -1.2m davanti all'utente
+          Rotazione: -90° sull'asse X per far guardare il cerchio verso l'utente
+      */}
+      <group position={[0.5, -0.3, -1.2]} rotation={[-Math.PI / 2, 0, 0]}>
+        {/* 1. SFONDO CIRCOLARE (cerchio piatto invece di pillola 3D) */}
+        <mesh>
+          <circleGeometry args={[0.09, 32]} />
           <meshStandardMaterial
             color="#111827"
             transparent
             opacity={0.8}
             roughness={0.2}
             metalness={0.5}
-            depthTest={false}
-            depthWrite={false}
+            side={2}
           />
-        </RoundedBox>
+        </mesh>
 
-        {/* Visual mic */}
-        <group position={[0, 0, 0.02]} renderOrder={999}>
-          <mesh ref={micRef} renderOrder={999}>
+        {/* 2. GRUPPO BOTTONE VISIVO */}
+        <group position={[0, 0, 0.001]}>
+          {/* Cerchio Colorato */}
+          <mesh ref={micRef}>
             <circleGeometry args={[0.065, 32]} />
-            <meshStandardMaterial
-              color={getMicColor()}
-              depthTest={false}
-              depthWrite={false}
-            />
+            <meshStandardMaterial color={getMicColor()} side={2} />
           </mesh>
 
+          {/* Icona 3D (Testo) - Leggermente davanti per essere visibile */}
           <Text
-            position={[0, 0, 0.01]}
+            position={[0, 0, 0.002]}
             fontSize={0.06}
             color="white"
             anchorX="center"
             anchorY="middle"
-            renderOrder={999}
           >
             🎙️
           </Text>
         </group>
 
-        {/* Click / hover hitbox (TRANSPARENT, not visible=false) */}
+        {/* 3. COLLIDER INVISIBILE (HIT BOX) */}
         <mesh
-          position={[0, 0, 0.06]}
-          renderOrder={1000}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            onMicClick();
-          }}
+          position={[0, 0, 0.002]}
+          visible={false}
           onClick={(e) => {
             e.stopPropagation();
+            console.log("🖱️ 3D Button Clicked!");
             onMicClick();
           }}
           onPointerOver={() => setMicHovered(true)}
           onPointerOut={() => setMicHovered(false)}
         >
-          {/* Big and easy to hit */}
-          <planeGeometry args={[0.22, 0.22]} />
-          <meshBasicMaterial
-            transparent
-            opacity={0}          // invisible but raycastable
-            depthTest={false}
-            depthWrite={false}
-          />
+          <circleGeometry args={[0.09, 16]} />
+          <meshBasicMaterial />
         </mesh>
       </group>
     </group>
