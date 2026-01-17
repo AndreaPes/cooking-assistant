@@ -17,10 +17,10 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
 
   // LOOP DI ANIMAZIONE (60 FPS)
   useFrame((state) => {
-    // 1. Segui la camera (mantieni sempre la stessa posizione relativa)
+    // 1. Segui la camera (SOLO posizione, NON rotazione)
     if (groupRef.current) {
       groupRef.current.position.copy(camera.position);
-      groupRef.current.quaternion.copy(camera.quaternion);
+      // NON copiamo la rotazione, così rimane fisso nello spazio
     }
 
     // 2. Animazione del bottone
@@ -47,7 +47,6 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
   };
 
   return (
-
     // Gruppo che segue la camera
     <group ref={groupRef}>
       {/* Offset relativo alla camera: 
@@ -55,7 +54,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
           Y: -0.3m sotto l'altezza occhi
           Z: -1.2m davanti all'utente
       */}
-      <group position={[0.5, 1, -1]} rotation={[0, -0.2, 0]}>
+      <group position={[0.5, -0.3, -1.2]} rotation={[0, 0, 0]}>
         {/* 1. SFONDO (Pillola di vetro) */}
         <RoundedBox args={[0.18, 0.18, 0.03]} radius={0.09} smoothness={4}>
           <meshStandardMaterial
@@ -68,41 +67,39 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
         </RoundedBox>
 
         {/* 2. GRUPPO BOTTONE VISIVO */}
-        <group position={[0, 0, 0.02]}>
-          {/* Cerchio Colorato (Solo visivo) */}
+        <group position={[0, 0, 0.02]} rotation={[-Math.PI / 2, 0, 0]}>
+          {/* Cerchio Colorato (Ruotato per guardare verso l'utente) */}
           <mesh ref={micRef}>
             <circleGeometry args={[0.065, 32]} />
-            <meshStandardMaterial color={getMicColor()} />
+            <meshStandardMaterial color={getMicColor()} side={2} />
           </mesh>
 
-          {/* Icona 3D (Testo) - Più sicuro dell'HTML in AR */}
+          {/* Icona 3D (Testo) */}
           <Text
-            position={[0, 0, 0.01]}
+            position={[0, 0.01, 0]}
             fontSize={0.06}
             color="white"
             anchorX="center"
             anchorY="middle"
+            rotation={[Math.PI / 2, 0, 0]}
           >
             🎙️
           </Text>
         </group>
 
-        {/* 3. COLLIDER INVISIBILE (HIT BOX) 
-            Questo è il trucco: un cerchio invisibile DAVANTI a tutto (z=0.05)
-            che cattura il click senza interferenze.
-        */}
+        {/* 3. COLLIDER INVISIBILE (HIT BOX) */}
         <mesh
-          position={[0, 0, 0.05]} // Ben avanti rispetto al resto
-          visible={false} // Invisibile
+          position={[0, 0, 0.05]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          visible={false}
           onClick={(e) => {
             e.stopPropagation();
-            console.log("🖱️ 3D Button Clicked!"); // Debug log
+            console.log("🖱️ 3D Button Clicked!");
             onMicClick();
           }}
           onPointerOver={() => setMicHovered(true)}
           onPointerOut={() => setMicHovered(false)}
         >
-          {/* Un po' più grande del bottone visivo per facilitare il click */}
           <circleGeometry args={[0.09, 16]} />
           <meshBasicMaterial />
         </mesh>
