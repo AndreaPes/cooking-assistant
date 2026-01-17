@@ -39,7 +39,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
 
   return (
     // POSIZIONE: Alto a Destra
-    <group position={[0.35, 0.25, -0.5]} rotation={[-0.1, -0.3, 0]}>
+    <group position={[0.35, 1, -0.8]} rotation={[-0.1, -0.3, 0]}>
       {/* 1. SFONDO (Pillola di vetro) */}
       <RoundedBox args={[0.14, 0.14, 0.02]} radius={0.07} smoothness={4}>
         <meshStandardMaterial
