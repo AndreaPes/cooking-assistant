@@ -93,7 +93,7 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
       <group ref={rootRef} frustumCulled={false} renderOrder={997}>
         <group position={[0, -0.05, -1]}>
           <group ref={panelRef}>
-            <RoundedBox args={[0.9, 0.6, 0.04]} radius={0.08}>
+          <RoundedBox args={[1.1, 0.75, 0.04]} radius={0.07}>
               <meshStandardMaterial
                 color="#111827"
                 transparent
