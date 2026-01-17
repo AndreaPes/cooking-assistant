@@ -53,11 +53,10 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
           X: 0.5m a destra
           Y: -0.3m sotto l'altezza occhi
           Z: -1.2m davanti all'utente
-          Rotazione: -90° sull'asse X per far guardare il cerchio verso l'utente
       */}
-      <group position={[0.5, -0.3, -1.2]} rotation={[-Math.PI / 2, 0, 0]}>
+      <group position={[0.5, -0.3, -1.2]} rotation={[0, 0, 0]}>
         {/* 1. SFONDO CIRCOLARE (cerchio piatto invece di pillola 3D) */}
-        <mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <circleGeometry args={[0.09, 32]} />
           <meshStandardMaterial
             color="#111827"
@@ -70,8 +69,8 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
         </mesh>
 
         {/* 2. GRUPPO BOTTONE VISIVO */}
-        <group position={[0, 0, 0.001]}>
-          {/* Cerchio Colorato */}
+        <group position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          {/* Cerchio Colorato (Ruotato per guardare verso l'utente) */}
           <mesh ref={micRef}>
             <circleGeometry args={[0.065, 32]} />
             <meshStandardMaterial color={getMicColor()} side={2} />
@@ -79,7 +78,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
 
           {/* Icona 3D (Testo) - Leggermente davanti per essere visibile */}
           <Text
-            position={[0, 0, 0.002]}
+            position={[0, 0.002, 0]}
             fontSize={0.06}
             color="white"
             anchorX="center"
@@ -91,7 +90,8 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
 
         {/* 3. COLLIDER INVISIBILE (HIT BOX) */}
         <mesh
-          position={[0, 0, 0.002]}
+          position={[0, 0.002, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
           visible={false}
           onClick={(e) => {
             e.stopPropagation();
