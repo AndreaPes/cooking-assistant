@@ -1,7 +1,7 @@
-import { Html } from "@react-three/drei";
 import { useEffect, useState, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Group, Vector3, Quaternion } from "three";
+import { RoundedBox, Text } from "@react-three/drei";
 import { useCookingState } from "@/state/cookingState";
 import { TimerItem } from "@/state/slices/timerSlice";
 
@@ -19,7 +19,7 @@ export function Timer({
 }: TimerProps) {
   // --- Local State ---
   const [timeLeft, setTimeLeft] = useState(seconds);
-  const [hasFinished, setHasFinished] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
 
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -33,14 +33,14 @@ export function Timer({
 
   // --- Audio ---
   const playAlarmSound = () => {
-    if (audioRef.current) return; // prevent double play
-    const alarm = new Audio(
+    if (audioRef.current) return;
+    const alarmSound = new Audio(
       "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
     );
-    alarm.loop = true;
-    alarm.volume = 0.5;
-    alarm.play().catch(() => {});
-    audioRef.current = alarm;
+    alarmSound.loop = true;
+    alarmSound.volume = 0.5;
+    alarmSound.play().catch((e) => console.error("Audio autoplay blocked:", e));
+    audioRef.current = alarmSound;
   };
 
   const stopAlarm = () => {
@@ -51,9 +51,9 @@ export function Timer({
   };
 
   const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, "0")}`;
+    const minutes = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
 
   // --- XR Head Lock ---
@@ -62,8 +62,10 @@ export function Timer({
     const cam = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
 
     if (!rootRef.current) return;
+
     cam.getWorldPosition(tmpPos);
     cam.getWorldQuaternion(tmpQuat);
+
     rootRef.current.position.copy(tmpPos);
     rootRef.current.quaternion.copy(tmpQuat);
     rootRef.current.frustumCulled = false;
@@ -72,91 +74,161 @@ export function Timer({
   // --- Sync seconds updates ---
   useEffect(() => {
     const delta = seconds - prevSecondsRef.current;
+
     if (delta !== 0) {
-      setTimeLeft((t) => Math.max(t + delta, 0));
+      console.log(`Adjusting Timer ${label}: ${delta > 0 ? "+" : ""}${delta}s`);
+      setTimeLeft((current) => Math.max(current + delta, 0));
       prevSecondsRef.current = seconds;
     }
-  }, [seconds]);
+
+    if (status === "running") {
+      setIsFinished(false);
+      stopAlarm();
+    }
+  }, [seconds, label, status]);
 
   // --- Countdown ---
   useEffect(() => {
-    if (status !== "running") return;
-    if (timeLeft <= 0) return;
+    if (status === "paused" || status === "idle") return;
 
-    const interval = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [status, timeLeft]);
-
-  // --- Finish transition (ONE SHOT) ---
-  useEffect(() => {
-    // Solo quando il timer raggiunge 0 E sta ancora correndo E non è già finito
-    if (timeLeft === 0 && status === "running" && !hasFinished) {
-      setHasFinished(true);
+    if (status === "running" && timeLeft > 0) {
+      const interval = setInterval(
+        () => setTimeLeft((t) => Math.max(0, t - 1)),
+        1000
+      );
+      return () => clearInterval(interval);
+    } else if (status === "running" && timeLeft <= 0 && !isFinished) {
+      setIsFinished(true);
       playAlarmSound();
+    }
+  }, [timeLeft, status, isFinished]);
 
-      const vanish = setTimeout(() => {
+  // --- Cleanup (Self-Destruct) ---
+  useEffect(() => {
+    if (isFinished) {
+      const vanishTimer = setTimeout(() => {
+        console.log(`⏰ Auto-removing timer ${id} from store...`);
         stopAlarm();
         removeTimerById(id);
       }, 5000);
 
       return () => {
-        clearTimeout(vanish);
+        clearTimeout(vanishTimer);
         stopAlarm();
       };
     }
-  }, [timeLeft, status, hasFinished, id, removeTimerById]);
+  }, [isFinished, id, removeTimerById]);
 
-  // --- Cleanup on unmount ---
+  // --- Unmount cleanup ---
   useEffect(() => {
     return () => stopAlarm();
   }, []);
 
-  // --- HUD offset ---
+  // --- Camera-local HUD offset ---
   const xOffset = 0.55;
-  const yOffset = 0.25 - stackIndex * 0.18;
+  const yOffset = 0.25 - stackIndex * 0.15;
   const zOffset = -1;
+
+  // --- Colors ---
+  const bgColor = isFinished
+    ? "#ef4444"
+    : status === "paused"
+      ? "#eab308"
+      : "#1f2937";
+  const borderColor = isFinished ? "#dc2626" : "#374151";
+
+  const progressWidth = Math.max(0.01, (timeLeft / totalSeconds) * 0.4);
 
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={800}>
       <group position={[xOffset, yOffset, zOffset]}>
-        <Html transform occlude scale={0.4}>
-          <div
-            className={`
-              w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg
-              ${
-                hasFinished
-                  ? "bg-red-500/40 border-red-500 animate-pulse"
-                  : "bg-white/10 border-white/20"
-              }
-            `}
-          >
-            <span className="uppercase tracking-wider text-[10px] font-bold mb-1 text-white/60">
-              {hasFinished ? "TIME'S UP!" : label}
-            </span>
+        {/* Background panel */}
+        <RoundedBox
+          args={[0.45, 0.18, 0.01]}
+          radius={0.02}
+          smoothness={4}
+          renderOrder={800}
+        >
+          <meshStandardMaterial
+            color={bgColor}
+            transparent
+            opacity={0.7}
+            depthWrite={false}
+          />
+        </RoundedBox>
 
-            <div className="text-4xl font-mono text-white">
-              {formatTime(timeLeft)}
-            </div>
+        {/* Border */}
+        <RoundedBox
+          args={[0.46, 0.19, 0.008]}
+          radius={0.02}
+          smoothness={4}
+          position={[0, 0, -0.005]}
+          renderOrder={799}
+        >
+          <meshStandardMaterial
+            color={borderColor}
+            transparent
+            opacity={0.4}
+            depthWrite={false}
+          />
+        </RoundedBox>
 
-            <div className="h-1 w-full bg-black/20 rounded-full mt-3 overflow-hidden">
-              <div
-                className="h-full bg-white/80 transition-all duration-1000"
-                style={{
-                  width: `${Math.max(0, (timeLeft / totalSeconds) * 100)}%`,
-                }}
-              />
-            </div>
-          </div>
-        </Html>
+        {/* Label */}
+        <Text
+          position={[0, 0.06, 0.01]}
+          fontSize={0.025}
+          color={isFinished ? "#fef2f2" : "#9ca3af"}
+          anchorX="center"
+          anchorY="middle"
+          renderOrder={801}
+        >
+          {isFinished ? "TIME'S UP!" : label.toUpperCase()}
+          {status === "paused" ? " (PAUSED)" : ""}
+        </Text>
+
+        {/* Time display */}
+        <Text
+          position={[0, 0.0, 0.01]}
+          fontSize={0.08}
+          color="white"
+          anchorX="center"
+          anchorY="middle"
+          font="/fonts/RobotoMono-Bold.ttf"
+          renderOrder={801}
+        >
+          {formatTime(timeLeft)}
+        </Text>
+
+        {/* Progress bar background */}
+        <mesh position={[0, -0.06, 0.01]} renderOrder={801}>
+          <planeGeometry args={[0.4, 0.015]} />
+          <meshBasicMaterial
+            color="#000000"
+            transparent
+            opacity={0.3}
+            depthWrite={false}
+          />
+        </mesh>
+
+        {/* Progress bar fill */}
+        <mesh
+          position={[-0.2 + progressWidth / 2, -0.06, 0.011]}
+          renderOrder={802}
+        >
+          <planeGeometry args={[progressWidth, 0.015]} />
+          <meshBasicMaterial
+            color={
+              isFinished
+                ? "#ef4444"
+                : status === "paused"
+                  ? "#eab308"
+                  : "#ffffff"
+            }
+            transparent
+            opacity={0.9}
+            depthWrite={false}
+          />
+        </mesh>
       </group>
     </group>
   );
