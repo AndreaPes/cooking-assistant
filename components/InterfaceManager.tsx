@@ -63,12 +63,7 @@ export function InterfaceManager({
           return <SuggestRecipe data={data} />;
 
         case "shopping_list":
-          return (
-            <ShoppingList
-              label={data.label || "Shopping List"}
-              customPosition={[0, 0, -1.5]}
-            />
-          );
+          return <ShoppingList label={data.label || "Shopping List"} />;
 
         case "fridge_inventory":
           return <FridgeInventory items={data.fridgeItems || []} />;

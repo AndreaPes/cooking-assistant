@@ -14,6 +14,7 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
   const rootRef = useRef<Group>(null);
   const panelRef = useRef<Group>(null);
 
+  // temp objects (NO allocations)
   const tmpPos = useRef(new Vector3()).current;
   const tmpQuat = useRef(new Quaternion()).current;
 
@@ -21,7 +22,9 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
   const { items: shoppingItems } = useShoppingState();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
-  // ---------------- sync logic (UNCHANGED) ----------------
+  // --------------------------------------------------
+  // SYNC LOGIC (UNCHANGED)
+  // --------------------------------------------------
 
   useEffect(() => {
     if (!data || !data.recipes?.length) {
@@ -55,32 +58,39 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
     setSelectedSuggestionIndex(null);
   }, [data, setSelectedSuggestionIndex]);
 
-  if (!data || !data.recipes?.length) return null;
-
-  // ---------------- XR head-lock ----------------
+  // --------------------------------------------------
+  // XR HEAD-LOCK (HOOK MUST ALWAYS RUN)
+  // --------------------------------------------------
 
   useFrame((state) => {
+    if (!rootRef.current) return;
+
     const camAny: any = state.camera;
     const cam = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
 
-    if (rootRef.current) {
-      cam.getWorldPosition(tmpPos);
-      cam.getWorldQuaternion(tmpQuat);
+    cam.getWorldPosition(tmpPos);
+    cam.getWorldQuaternion(tmpQuat);
 
-      rootRef.current.position.copy(tmpPos);
-      rootRef.current.quaternion.copy(tmpQuat);
-      rootRef.current.frustumCulled = false;
-    }
+    rootRef.current.position.copy(tmpPos);
+    rootRef.current.quaternion.copy(tmpQuat);
+    rootRef.current.frustumCulled = false;
   });
+
+  // --------------------------------------------------
+  // GUARD (AFTER HOOKS)
+  // --------------------------------------------------
+
+  if (!data || !data.recipes?.length) return null;
 
   const recipes = data.recipes;
 
-  // ======================================================
+  // ==================================================
   // OVERVIEW MODE
-  // ======================================================
+  // ==================================================
+
   if (selectedIndex === null) {
     return (
-      <group ref={rootRef} renderOrder={997}>
+      <group ref={rootRef} frustumCulled={false} renderOrder={997}>
         <group position={[0, -0.05, -1]}>
           <group ref={panelRef}>
             <RoundedBox args={[0.9, 0.6, 0.04]} radius={0.08}>
@@ -119,13 +129,14 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
     );
   }
 
-  // ======================================================
-  // DETAIL MODE (SIMPLIFIED DASHBOARD)
-  // ======================================================
+  // ==================================================
+  // DETAIL MODE
+  // ==================================================
+
   const recipe = recipes[Math.min(selectedIndex, recipes.length - 1)];
 
   return (
-    <group ref={rootRef} renderOrder={997}>
+    <group ref={rootRef} frustumCulled={false} renderOrder={997}>
       <group position={[0, -0.05, -1]}>
         <group ref={panelRef}>
           <RoundedBox args={[1.1, 0.7, 0.04]} radius={0.08}>

@@ -12,19 +12,20 @@ interface StepGuideProps {
 }
 
 export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
-  if (!step) return null;
-
   const rootRef = useRef<Group>(null);
 
   // temp objects (NO allocations per frame)
   const tmpPos = useRef(new Vector3()).current;
   const tmpQuat = useRef(new Quaternion()).current;
 
+  // --------------------------------------------------
+  // XR HEAD-LOCK (HOOK MUST ALWAYS RUN)
+  // --------------------------------------------------
   useFrame((state) => {
+    if (!rootRef.current) return;
+
     const camAny: any = state.camera;
     const cam = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
-
-    if (!rootRef.current) return;
 
     cam.getWorldPosition(tmpPos);
     cam.getWorldQuaternion(tmpQuat);
@@ -33,6 +34,11 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
     rootRef.current.quaternion.copy(tmpQuat);
     rootRef.current.frustumCulled = false;
   });
+
+  // --------------------------------------------------
+  // GUARD (AFTER HOOKS)
+  // --------------------------------------------------
+  if (!step) return null;
 
   const current = (stepIndex + 1).toString().padStart(2, "0");
   const total = totalSteps.toString().padStart(2, "0");
