@@ -135,11 +135,14 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
 
   const recipe = recipes[Math.min(selectedIndex, recipes.length - 1)];
 
+  const have = recipe.ingredientsYouHave || [];
+  const missing = recipe.ingredientsMissing || [];
+
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={997}>
       <group position={[0, -0.05, -1]}>
         <group ref={panelRef}>
-          <RoundedBox args={[1.1, 0.7, 0.04]} radius={0.08}>
+          <RoundedBox args={[1.25, 0.95, 0.04]} radius={0.08}>
             <meshStandardMaterial
               color="#111827"
               transparent
@@ -149,32 +152,104 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
             />
           </RoundedBox>
 
+          {/* TITLE */}
           <Text
-            position={[0, 0.28, 0.03]}
+            position={[0, 0.38, 0.03]}
             fontSize={0.05}
             color="#fb923c"
-            maxWidth={0.95}
+            maxWidth={1.1}
             anchorX="center"
           >
             {recipe.title}
           </Text>
 
+          {/* META */}
           <Text
-            position={[0, 0.15, 0.03]}
+            position={[0, 0.28, 0.03]}
             fontSize={0.035}
             color="white"
             anchorX="center"
           >
-            {`⏱ ${recipe.estimatedTimeMinutes || "--"} min   ⚡ ${
-              recipe.difficulty || "MED"
+            {`⏱ ${recipe.estimatedTimeMinutes ?? "--"} min   ⚡ ${
+              recipe.difficulty?.toUpperCase() ?? "MED"
             }`}
           </Text>
 
+          {/* INGREDIENTS — YOU HAVE */}
           <Text
-            position={[0, -0.05, 0.03]}
-            fontSize={0.038}
-            maxWidth={0.95}
+            position={[-0.5, 0.18, 0.03]}
+            fontSize={0.03}
+            color="#4ade80"
+            anchorX="left"
+          >
+            YOU HAVE
+          </Text>
+
+          {have.length === 0 && (
+            <Text
+              position={[-0.5, 0.12, 0.03]}
+              fontSize={0.03}
+              color="#9ca3af"
+              anchorX="left"
+            >
+              —
+            </Text>
+          )}
+
+          {have.slice(0, 5).map((ing, i) => (
+            <Text
+              key={`have-${i}`}
+              position={[-0.5, 0.12 - i * 0.07, 0.03]}
+              fontSize={0.032}
+              color="#4ade80"
+              anchorX="left"
+              maxWidth={0.9}
+            >
+              ✓ {ing}
+            </Text>
+          ))}
+
+          {/* INGREDIENTS — MISSING */}
+          <Text
+            position={[0.1, 0.18, 0.03]}
+            fontSize={0.03}
+            color="#f87171"
+            anchorX="left"
+          >
+            MISSING
+          </Text>
+
+          {missing.length === 0 && (
+            <Text
+              position={[0.1, 0.12, 0.03]}
+              fontSize={0.03}
+              color="#4ade80"
+              anchorX="left"
+            >
+              None 🎉
+            </Text>
+          )}
+
+          {missing.slice(0, 5).map((ing, i) => (
+            <Text
+              key={`missing-${i}`}
+              position={[0.1, 0.12 - i * 0.07, 0.03]}
+              fontSize={0.032}
+              color="#f87171"
+              anchorX="left"
+              maxWidth={0.9}
+            >
+              ✕ {ing}
+            </Text>
+          ))}
+
+          {/* CTA */}
+          <Text
+            position={[0, -0.38, 0.03]}
+            fontSize={0.036}
+            maxWidth={1}
             anchorX="center"
+            color="white"
           >
             Say “Start Cooking” to begin
           </Text>
