@@ -12,6 +12,7 @@ interface TimerProps extends TimerItem {
 export function Timer({
   id,
   seconds,
+  totalSeconds,
   label = "Timer",
   status,
   stackIndex = 0,
@@ -150,7 +151,7 @@ export function Timer({
               <div
                 className="h-full bg-white/80 transition-all duration-1000"
                 style={{
-                  width: `${Math.max(0, (timeLeft / seconds) * 100)}%`,
+                  width: `${Math.max(0, (timeLeft / totalSeconds) * 100)}%`,
                 }}
               />
             </div>
