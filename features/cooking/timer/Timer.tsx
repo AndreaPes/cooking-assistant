@@ -32,7 +32,7 @@ export function Timer({
 }: TimerProps) {
   // --- Local State ---
   const [timeLeft, setTimeLeft] = useState(seconds);
-  const [isFinished, setIsFinished] = useState(false);
+  const isFinished = status === "running" && timeLeft === 0;
 
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -85,8 +85,9 @@ export function Timer({
     rootRef.current.frustumCulled = false;
   });
 
-  // --- Effects (LOGIC UNCHANGED) ---
+  // --- Effects ---
 
+  // Sync when seconds change
   useEffect(() => {
     const delta = seconds - prevSecondsRef.current;
 
@@ -95,38 +96,37 @@ export function Timer({
       prevSecondsRef.current = seconds;
     }
 
-    if (status !== "finished") {
-      setIsFinished(false);
+    if (status !== "running") {
       stopAlarm();
     }
   }, [seconds, status]);
 
+  // Countdown interval
   useEffect(() => {
-    if (status === "paused" || status === "idle") return;
+    if (status !== "running") return;
 
-    if (status === "running" && timeLeft > 0) {
-      const interval = setInterval(
-        () => setTimeLeft((t) => Math.max(0, t - 1)),
-        1000
-      );
-      return () => clearInterval(interval);
-    } else if (status === "running" && timeLeft <= 0 && !isFinished) {
-      setIsFinished(true);
-      playAlarmSound();
-    }
-  }, [timeLeft, status, isFinished]);
+    const interval = setInterval(() => {
+      setTimeLeft((t) => Math.max(0, t - 1));
+    }, 1000);
 
+    return () => clearInterval(interval);
+  }, [status]);
+
+  // Alarm + auto remove
   useEffect(() => {
-    if (isFinished) {
-      const vanishTimer = setTimeout(() => {
-        stopAlarm();
-        removeTimerById(id);
-      }, 30000);
+    if (!isFinished) return;
 
-      return () => clearTimeout(vanishTimer);
-    }
+    playAlarmSound();
+
+    const vanishTimer = setTimeout(() => {
+      stopAlarm();
+      removeTimerById(id);
+    }, 30000);
+
+    return () => clearTimeout(vanishTimer);
   }, [isFinished, id, removeTimerById]);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => stopAlarm();
   }, []);
