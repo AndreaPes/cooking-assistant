@@ -55,7 +55,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
           Y: -0.3m sotto l'altezza occhi
           Z: -1.2m davanti all'utente
       */}
-      <group position={[0.5, -0.3, -1.2]} rotation={[0, -0.2, 0]}>
+      <group position={[0.5, 1, -1]} rotation={[0, -0.2, 0]}>
         {/* 1. SFONDO (Pillola di vetro) */}
         <RoundedBox args={[0.18, 0.18, 0.03]} radius={0.09} smoothness={4}>
           <meshStandardMaterial
