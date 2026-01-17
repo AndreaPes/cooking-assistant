@@ -17,7 +17,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
 
   // LOOP DI ANIMAZIONE (60 FPS)
   useFrame((state) => {
-    // 1. Segui la camera (SOLO posizione, NON rotazione)
+    // 1. Segui la camera (NON rotazione)
     if (groupRef.current) {
       groupRef.current.position.copy(camera.position);
       // NON copiamo la rotazione, così rimane fisso nello spazio
