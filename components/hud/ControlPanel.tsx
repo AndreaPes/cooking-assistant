@@ -14,30 +14,14 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
   const micRef = useRef<Mesh>(null);
   const [micHovered, setMicHovered] = useState(false);
 
-  // local "pressed" flash state (for visibility on click)
-  const [pressed, setPressed] = useState(false);
-  const pressedTimeoutRef = useRef<number | null>(null);
-
   // temp objects (avoid allocations)
   const tmpPos = useRef(new Vector3()).current;
   const tmpQuat = useRef(new Quaternion()).current;
 
   const getMicColor = () => {
-    // Strong, very visible flash when pressed
-    if (pressed) return "#22c55e"; // bright green
-    if (status === AssistantStatus.LISTENING) return "#ef4444"; // red
-    if (status === AssistantStatus.PROCESSING) return "#f59e0b"; // amber
-    return "#374151"; // idle
-  };
-
-  const handlePress = () => {
-    // trigger app logic
-    onMicClick();
-
-    // flash color briefly for visibility
-    setPressed(true);
-    if (pressedTimeoutRef.current) window.clearTimeout(pressedTimeoutRef.current);
-    pressedTimeoutRef.current = window.setTimeout(() => setPressed(false), 220);
+    if (status === AssistantStatus.LISTENING) return "#ef4444";
+    if (status === AssistantStatus.PROCESSING) return "#f59e0b";
+    return "#374151";
   };
 
   useFrame((state) => {
@@ -45,17 +29,18 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
     const camAny: any = state.camera;
     const cam: any = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
 
-    // Lock HUD to headset pose (world position + world rotation)
+    // 1) Lock HUD to headset pose (world position + world rotation)
     if (rootRef.current) {
       cam.getWorldPosition(tmpPos);
       cam.getWorldQuaternion(tmpQuat);
 
       rootRef.current.position.copy(tmpPos);
       rootRef.current.quaternion.copy(tmpQuat);
+
       rootRef.current.frustumCulled = false;
     }
 
-    // Mic animation (hover + pulse)
+    // 2) Mic animation
     if (micRef.current) {
       let targetScale = micHovered ? 1.1 : 1.0;
 
@@ -73,19 +58,11 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
 
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={999}>
-      {/* Corner offset (TOP-RIGHT). Tweak as you want. */}
+      {/* Camera-local offset (TOP-RIGHT). Tweak as you want. */}
       <group position={[0.28, 0.18, -0.55]} renderOrder={999}>
-        {/* Background (rounded square) */}
+        {/* Background */}
         <RoundedBox args={[0.18, 0.18, 0.03]} radius={0.09} smoothness={4}>
-          <meshStandardMaterial
-            color="#111827"
-            transparent
-            opacity={0.85}
-            roughness={0.25}
-            metalness={0.4}
-            depthTest={false}
-            depthWrite={false}
-          />
+          <meshStandardMaterial transparent opacity={0} depthWrite={false} />
         </RoundedBox>
 
         {/* Mic visuals */}
@@ -111,25 +88,26 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
           </Text>
         </group>
 
-        {/* HITBOX: use a circle (no "cylinder" feeling) and keep it invisible but raycastable */}
+        {/* Clickable hitbox (transparent, NOT visible=false) */}
         <mesh
           position={[0, 0, 0.06]}
           renderOrder={1000}
           onPointerDown={(e) => {
             e.stopPropagation();
-            handlePress();
+            onMicClick();
           }}
           onClick={(e) => {
             e.stopPropagation();
-            handlePress();
+            onMicClick();
           }}
           onPointerOver={() => setMicHovered(true)}
           onPointerOut={() => setMicHovered(false)}
         >
-          <circleGeometry args={[0.11, 32]} />
+          {/* Big easy target for XR rays */}
+          <planeGeometry args={[0.22, 0.22]} />
           <meshBasicMaterial
             transparent
-            opacity={0} // invisible
+            opacity={0}
             depthTest={false}
             depthWrite={false}
           />
