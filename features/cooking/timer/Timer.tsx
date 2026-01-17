@@ -18,7 +18,7 @@ export function Timer({
 }: TimerProps) {
   // --- Local State ---
   const [timeLeft, setTimeLeft] = useState(seconds);
-  const [finished, setFinished] = useState(false);
+  const [hasFinished, setHasFinished] = useState(false);
 
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -32,7 +32,7 @@ export function Timer({
 
   // --- Audio ---
   const playAlarmSound = () => {
-    if (audioRef.current) return; // 🔴 prevent double play
+    if (audioRef.current) return; // prevent double play
     const alarm = new Audio(
       "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
     );
@@ -43,8 +43,10 @@ export function Timer({
   };
 
   const stopAlarm = () => {
-    audioRef.current?.pause();
-    audioRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
   };
 
   const formatTime = (s: number) => {
@@ -95,21 +97,27 @@ export function Timer({
 
   // --- Finish transition (ONE SHOT) ---
   useEffect(() => {
-    if (timeLeft !== 0 || finished || status !== "running") return;
+    // Solo quando il timer raggiunge 0 E sta ancora correndo E non è già finito
+    if (timeLeft === 0 && status === "running" && !hasFinished) {
+      setHasFinished(true);
+      playAlarmSound();
 
-    setFinished(true);
-    playAlarmSound();
+      const vanish = setTimeout(() => {
+        stopAlarm();
+        removeTimerById(id);
+      }, 5000);
 
-    const vanish = setTimeout(() => {
-      stopAlarm();
-      removeTimerById(id);
-    }, 30000);
+      return () => {
+        clearTimeout(vanish);
+        stopAlarm();
+      };
+    }
+  }, [timeLeft, status, hasFinished, id, removeTimerById]);
 
-    return () => clearTimeout(vanish);
-  }, [timeLeft, finished, status, id, removeTimerById]);
-
-  // --- Cleanup ---
-  useEffect(() => stopAlarm, []);
+  // --- Cleanup on unmount ---
+  useEffect(() => {
+    return () => stopAlarm();
+  }, []);
 
   // --- HUD offset ---
   const xOffset = 0.55;
@@ -124,14 +132,14 @@ export function Timer({
             className={`
               w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg
               ${
-                finished
+                hasFinished
                   ? "bg-red-500/40 border-red-500 animate-pulse"
                   : "bg-white/10 border-white/20"
               }
             `}
           >
             <span className="uppercase tracking-wider text-[10px] font-bold mb-1 text-white/60">
-              {finished ? "TIME'S UP!" : label}
+              {hasFinished ? "TIME'S UP!" : label}
             </span>
 
             <div className="text-4xl font-mono text-white">
