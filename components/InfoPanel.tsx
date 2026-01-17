@@ -1,75 +1,111 @@
-import { Html } from "@react-three/drei";
-import { useEffect, useState } from "react";
+import { useRef } from "react";
+import { RoundedBox, Text } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
+import { Group, Quaternion, Vector3 } from "three";
 
 interface InfoPanelProps {
-  /** The text content to display within the panel. */
   text: string;
-  /** Optional callback function triggered when the panel closes (after timeout). */
   onClose?: () => void;
 }
 
-/**
- * 3D Information Panel Component.
- * Displays a floating glassmorphism card with instructions or AI responses.
- *
- * Features:
- * - Automatically fades in upon mounting.
- * - Auto-dismisses after 8 seconds.
- * - Uses `Html` from `drei` to render accessible DOM elements within the 3D scene.
- */
 export function InfoPanel({ text, onClose }: InfoPanelProps) {
-  const [visible, setVisible] = useState(false);
+  const rootRef = useRef<Group>(null);
+  const panelRef = useRef<Group>(null);
 
-  useEffect(() => {
-    // Trigger entry animation
-    requestAnimationFrame(() => setVisible(true));
+  // temp objects (NO allocations)
+  const tmpPos = useRef(new Vector3()).current;
+  const tmpQuat = useRef(new Quaternion()).current;
 
-    // Auto-close timer
-    const timer = setTimeout(() => {
-      setVisible(false);
-      setTimeout(() => onClose && onClose(), 500);
-    }, 8000);
+  // animation state
+  const t = useRef(0);
+  const closing = useRef(false);
+  const lifetime = useRef(0);
 
-    return () => clearTimeout(timer);
-  }, [onClose]);
+  useFrame((state, delta) => {
+    const camAny: any = state.camera;
+    const cam = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
+
+    // 1) Lock to headset
+    if (rootRef.current) {
+      cam.getWorldPosition(tmpPos);
+      cam.getWorldQuaternion(tmpQuat);
+
+      rootRef.current.position.copy(tmpPos);
+      rootRef.current.quaternion.copy(tmpQuat);
+      rootRef.current.frustumCulled = false;
+    }
+
+    // 2) Lifetime handling
+    lifetime.current += delta;
+    if (lifetime.current > 8 && !closing.current) {
+      closing.current = true;
+    }
+
+    // 3) Animation
+    if (panelRef.current) {
+      if (!closing.current) {
+        t.current = Math.min(t.current + delta * 2.5, 1);
+      } else {
+        t.current = Math.max(t.current - delta * 3, 0);
+        if (t.current === 0 && onClose) onClose();
+      }
+
+      panelRef.current.position.y = t.current * 0.08;
+      panelRef.current.scale.setScalar(0.85 + t.current * 0.15);
+    }
+  });
 
   return (
-    <group position={[0, 1, -1.5]}>
-      <Html transform occlude center scale={0.4}>
-        <div
-          className={`
-            w-[600px] p-8 rounded-[2rem] border backdrop-blur-xl shadow-2xl flex flex-col gap-4 transition-all duration-500 ease-out
-            bg-gray-900/90 border-white/10
-            ${visible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-8 scale-95"}
-          `}
-        >
+    <group ref={rootRef} frustumCulled={false} renderOrder={998}>
+      {/* Camera-local offset: CENTER */}
+      <group position={[0, 0.05, -1]} renderOrder={998}>
+        <group ref={panelRef}>
+          {/* Background */}
+          <RoundedBox args={[0.9, 0.45, 0.04]} radius={0.08}>
+            <meshStandardMaterial
+              color="#111827"
+              transparent
+              opacity={0.92}
+              depthTest={false}
+              depthWrite={false}
+            />
+          </RoundedBox>
+
           {/* Header */}
-          <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/50 text-blue-400">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="w-4 h-4"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <span className="text-[10px] font-bold tracking-[0.2em] text-blue-400 uppercase">
-              ASSISTANT
-            </span>
-          </div>
+          <Text
+            position={[-0.35, 0.16, 0.03]}
+            fontSize={0.03}
+            color="#60a5fa"
+            anchorX="left"
+            anchorY="middle"
+          >
+            ASSISTANT
+          </Text>
+
+          {/* Divider */}
+          <mesh position={[0, 0.11, 0.03]}>
+            <planeGeometry args={[0.75, 0.002]} />
+            <meshStandardMaterial
+              color="#1f2933"
+              depthTest={false}
+              depthWrite={false}
+            />
+          </mesh>
 
           {/* Content */}
-          <p className="text-xl font-medium text-white leading-relaxed">
+          <Text
+            position={[0, -0.02, 0.03]}
+            maxWidth={0.75}
+            fontSize={0.045}
+            lineHeight={1.3}
+            color="white"
+            anchorX="center"
+            anchorY="middle"
+          >
             {text}
-          </p>
-        </div>
-      </Html>
+          </Text>
+        </group>
+      </group>
     </group>
   );
 }

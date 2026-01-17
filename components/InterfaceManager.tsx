@@ -37,25 +37,17 @@ export function InterfaceManager({
    * Positioned on the right side of the field of view.
    */
   const renderTimers = () => {
-    return activeTimers.map((timer, index) => {
-      const TIMER_GAP = 1.5;
-      const START_Y = 0.5;
-      const stackY = START_Y - index * TIMER_GAP;
-
-      const position: [number, number, number] = [5, stackY, -2];
-
-      return (
-        <Timer
-          key={timer.id}
-          id={timer.id}
-          seconds={timer.seconds}
-          totalSeconds={timer.totalSeconds}
-          label={timer.label}
-          status={timer.status}
-          customPosition={position}
-        />
-      );
-    });
+    return activeTimers.map((timer, index) => (
+      <Timer
+        key={timer.id}
+        id={timer.id}
+        seconds={timer.seconds}
+        totalSeconds={timer.totalSeconds}
+        label={timer.label}
+        status={timer.status}
+        stackIndex={index}
+      />
+    ));
   };
 
   /**

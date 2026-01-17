@@ -52,10 +52,12 @@ export default function ARScene() {
       )}
 
       {/* LAYER 3D */}
-      <Canvas gl={{ alpha: true }}>
-        <OrbitControls makeDefault />
+      <Canvas
+        gl={{ alpha: true }}
+        camera={{ position: [0, 0, 0.1], near: 0.01, far: 100 }}
+      >
+        {!isInAR && <OrbitControls makeDefault />}
 
-        {/* 👇 FIX: Rimossa la prop 'onSessionEnd' che causava l'errore */}
         <XR store={store}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
