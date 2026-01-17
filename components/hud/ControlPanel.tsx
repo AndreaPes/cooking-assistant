@@ -47,6 +47,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
   };
 
   return (
+
     // Gruppo che segue la camera
     <group ref={groupRef}>
       {/* Offset relativo alla camera: 
