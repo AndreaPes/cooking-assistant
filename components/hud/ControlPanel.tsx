@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { RoundedBox, Text } from "@react-three/drei";
+import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { AssistantStatus } from "@/state/assistantState";
 import { Mesh, Group } from "three";
@@ -17,7 +17,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
 
   // LOOP DI ANIMAZIONE (60 FPS)
   useFrame((state) => {
-    // 1. Segui la camera (NON rotazione)
+    // 1. Segui la camera (SOLO posizione, NON rotazione)
     if (groupRef.current) {
       groupRef.current.position.copy(camera.position);
       // NON copiamo la rotazione, così rimane fisso nello spazio
@@ -55,33 +55,34 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
           Z: -1.2m davanti all'utente
       */}
       <group position={[0.5, -0.3, -1.2]} rotation={[0, 0, 0]}>
-        {/* 1. SFONDO (Pillola di vetro) */}
-        <RoundedBox args={[0.18, 0.18, 0.03]} radius={0.09} smoothness={4}>
+        {/* 1. SFONDO CIRCOLARE (cerchio piatto invece di pillola 3D) */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.09, 32]} />
           <meshStandardMaterial
             color="#111827"
             transparent
             opacity={0.8}
             roughness={0.2}
             metalness={0.5}
+            side={2}
           />
-        </RoundedBox>
+        </mesh>
 
         {/* 2. GRUPPO BOTTONE VISIVO */}
-        <group position={[0, 0, 0.02]} rotation={[-Math.PI / 2, 0, 0]}>
+        <group position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           {/* Cerchio Colorato (Ruotato per guardare verso l'utente) */}
           <mesh ref={micRef}>
             <circleGeometry args={[0.065, 32]} />
             <meshStandardMaterial color={getMicColor()} side={2} />
           </mesh>
 
-          {/* Icona 3D (Testo) */}
+          {/* Icona 3D (Testo) - Leggermente davanti per essere visibile */}
           <Text
-            position={[0, 0.01, 0]}
+            position={[0, 0.002, 0]}
             fontSize={0.06}
             color="white"
             anchorX="center"
             anchorY="middle"
-            rotation={[Math.PI / 2, 0, 0]}
           >
             🎙️
           </Text>
@@ -89,7 +90,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
 
         {/* 3. COLLIDER INVISIBILE (HIT BOX) */}
         <mesh
-          position={[0, 0, 0.05]}
+          position={[0, 0.002, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           visible={false}
           onClick={(e) => {
