@@ -59,7 +59,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={999}>
       {/* Camera-local offset (TOP-RIGHT). Tweak as you want. */}
-      <group position={[0.28, 0.18, -0.55]} renderOrder={999}>
+      <group position={[0.34, 0.22, -0.8]} renderOrder={999}>
         {/* Background */}
         <RoundedBox args={[0.18, 0.18, 0.03]} radius={0.09} smoothness={4}>
           <meshStandardMaterial transparent opacity={0} depthWrite={false} />
