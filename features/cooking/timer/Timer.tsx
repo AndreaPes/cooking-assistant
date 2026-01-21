@@ -1,5 +1,5 @@
 import { Html } from "@react-three/drei";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Group, Vector3, Quaternion } from "three";
 import { useCookingState } from "@/state/cookingState";
@@ -16,12 +16,10 @@ interface TimerProps extends TimerItem {
 /**
  * 3D Component representing a single active timer.
  *
- * LOGIC: UNCHANGED
- * XR ADAPTATION:
- * - Head-locked (camera-space)
- * - Quest-safe (ArrayCamera)
- * - Right-side HUD stack
- * - Frustum culling disabled
+ * Fixes:
+ * - Removed Html occlude (can hide HUD in XR unexpectedly).
+ * - Alarm is now single-instance + guaranteed cleanup (StrictMode-safe).
+ * - Countdown uses a stable interval ref (no re-creating per tick).
  */
 export function Timer({
   id,
@@ -35,9 +33,15 @@ export function Timer({
   const [isFinished, setIsFinished] = useState(false);
 
   // --- Refs ---
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const prevSecondsRef = useRef(seconds);
   const rootRef = useRef<Group>(null);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const alarmStartedRef = useRef(false);
+
+  const intervalRef = useRef<number | null>(null);
+  const vanishTimeoutRef = useRef<number | null>(null);
+
+  const prevSecondsRef = useRef(seconds);
 
   // --- Temp objects (avoid allocations) ---
   const tmpPos = useRef(new Vector3()).current;
@@ -46,23 +50,60 @@ export function Timer({
   // --- Global Actions ---
   const { removeTimerById } = useCookingState();
 
-  // --- Audio Helpers ---
-  const playAlarmSound = () => {
-    const alarmSound = new Audio(
+  const clearTickInterval = useCallback(() => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  const stopAlarm = useCallback(() => {
+    alarmStartedRef.current = false;
+
+    if (vanishTimeoutRef.current !== null) {
+      window.clearTimeout(vanishTimeoutRef.current);
+      vanishTimeoutRef.current = null;
+    }
+
+    const a = audioRef.current;
+    if (a) {
+      try {
+        a.pause();
+        a.currentTime = 0;
+      } catch {
+        // ignore
+      }
+      a.loop = false;
+    }
+    audioRef.current = null;
+  }, []);
+
+  const playAlarmSound = useCallback(() => {
+    // Prevent double-start (React StrictMode / remounts / repeated effects)
+    if (alarmStartedRef.current) return;
+    alarmStartedRef.current = true;
+
+    // Stop any previous/ghost instance
+    const old = audioRef.current;
+    if (old) {
+      try {
+        old.pause();
+        old.currentTime = 0;
+      } catch {
+        // ignore
+      }
+    }
+
+    const a = new Audio(
       "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
     );
-    alarmSound.loop = true;
-    alarmSound.volume = 0.5;
-    alarmSound.play().catch((e) => console.error("Audio autoplay blocked:", e));
-    audioRef.current = alarmSound;
-  };
+    a.loop = true;
+    a.volume = 0.5;
+    a.currentTime = 0;
+    audioRef.current = a;
 
-  const stopAlarm = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-  };
+    a.play().catch((e) => console.error("Audio autoplay blocked:", e));
+  }, []);
 
   const formatTime = (s: number) => {
     const minutes = Math.floor(s / 60);
@@ -85,51 +126,77 @@ export function Timer({
     rootRef.current.frustumCulled = false;
   });
 
-  // --- Effects (LOGIC UNCHANGED) ---
-
+  // Sync local timeLeft if prop seconds changes (add/subtract time)
   useEffect(() => {
     const delta = seconds - prevSecondsRef.current;
-
     if (delta !== 0) {
       setTimeLeft((current) => Math.max(current + delta, 0));
       prevSecondsRef.current = seconds;
     }
+  }, [seconds]);
 
+  // React to status changes
+  useEffect(() => {
+    // If the timer is not finished anymore (e.g. restarted), kill alarm + reset finish
     if (status !== "finished") {
       setIsFinished(false);
       stopAlarm();
     }
-  }, [seconds, status]);
 
-  useEffect(() => {
-    if (status === "paused" || status === "idle") return;
-
-    if (status === "running" && timeLeft > 0) {
-      const interval = setInterval(
-        () => setTimeLeft((t) => Math.max(0, t - 1)),
-        1000
-      );
-      return () => clearInterval(interval);
-    } else if (status === "running" && timeLeft <= 0 && !isFinished) {
-      setIsFinished(true);
-      playAlarmSound();
+    if (status === "paused" || status === "idle") {
+      clearTickInterval();
     }
-  }, [timeLeft, status, isFinished]);
+  }, [status, stopAlarm, clearTickInterval]);
 
+  // Countdown tick when running
   useEffect(() => {
-    if (isFinished) {
-      const vanishTimer = setTimeout(() => {
-        stopAlarm();
-        removeTimerById(id);
-      }, 30000);
-
-      return () => clearTimeout(vanishTimer);
+    if (status !== "running" || isFinished) {
+      clearTickInterval();
+      return;
     }
-  }, [isFinished, id, removeTimerById]);
 
+    clearTickInterval();
+
+    intervalRef.current = window.setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          clearTickInterval();
+          setIsFinished(true);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+
+    return () => clearTickInterval();
+  }, [status, isFinished, clearTickInterval]);
+
+  // When finished: start alarm + auto-remove (and stop) after 30s
   useEffect(() => {
-    return () => stopAlarm();
-  }, []);
+    if (!isFinished) return;
+
+    playAlarmSound();
+
+    vanishTimeoutRef.current = window.setTimeout(() => {
+      stopAlarm();
+      removeTimerById(id);
+    }, 5000);
+
+    return () => {
+      if (vanishTimeoutRef.current !== null) {
+        window.clearTimeout(vanishTimeoutRef.current);
+        vanishTimeoutRef.current = null;
+      }
+    };
+  }, [isFinished, id, playAlarmSound, stopAlarm, removeTimerById]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearTickInterval();
+      stopAlarm();
+    };
+  }, [clearTickInterval, stopAlarm]);
 
   // --- Camera-local HUD offset ---
   const xOffset = 0.55;
@@ -140,7 +207,8 @@ export function Timer({
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={800}>
       <group position={[xOffset, yOffset, zOffset]}>
-        <Html transform occlude scale={0.4}>
+        {/* IMPORTANT: remove occlude for XR HUD stability */}
+        <Html transform scale={0.4}>
           <div
             className={`
               w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg transition-all duration-500 
@@ -174,7 +242,9 @@ export function Timer({
                 style={{
                   width: isFinished
                     ? "100%"
-                    : `${Math.min(100, (timeLeft / seconds) * 100)}%`,
+                    : seconds > 0
+                      ? `${Math.min(100, (timeLeft / seconds) * 100)}%`
+                      : "0%",
                 }}
               />
             </div>
