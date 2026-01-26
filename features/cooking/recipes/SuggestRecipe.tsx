@@ -7,24 +7,35 @@ import { useShoppingState } from "@/state/shoppingState";
 import type { RecipeSuggestionData } from "@/types/interfaces";
 
 interface SuggestRecipeProps {
+  /**
+   * The data object containing recipe suggestions and the currently selected recipe title.
+   */
   data: RecipeSuggestionData | null;
 }
 
+/**
+ * A 3D interactive panel for displaying AI-generated recipe suggestions.
+ *
+ * This component operates in two modes:
+ * 1. Overview Mode: Displays a list of suggested recipes.
+ * 2. Detail Mode: Shows specific details for a selected recipe, dynamically comparing
+ * required ingredients against the user's local inventory (shopping state).
+ *
+ * Features:
+ * - Head-locked positioning.
+ * - Real-time inventory matching (checks if ingredients are present in the shopping list).
+ * - Automatic state synchronization with the cooking assistant.
+ */
 export function SuggestRecipe({ data }: SuggestRecipeProps) {
   const rootRef = useRef<Group>(null);
   const panelRef = useRef<Group>(null);
 
-  // temp objects (NO allocations)
   const tmpPos = useRef(new Vector3()).current;
   const tmpQuat = useRef(new Quaternion()).current;
 
   const { setSuggestion, setSelectedSuggestionIndex } = useCookingState();
   const { items: shoppingItems } = useShoppingState();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-
-  // --------------------------------------------------
-  // SYNC LOGIC (UNCHANGED)
-  // --------------------------------------------------
 
   useEffect(() => {
     if (!data || !data.recipes?.length) {
@@ -45,7 +56,7 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
     if (data.selectedTitle) {
       const target = data.selectedTitle.toLowerCase();
       const idx = data.recipes.findIndex((r) =>
-        r.title?.toLowerCase().includes(target)
+        r.title?.toLowerCase().includes(target),
       );
       if (idx >= 0) {
         setSelectedIndex(idx);
@@ -57,10 +68,6 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
     setSelectedIndex(null);
     setSelectedSuggestionIndex(null);
   }, [data, setSelectedSuggestionIndex]);
-
-  // --------------------------------------------------
-  // XR HEAD-LOCK (HOOK MUST ALWAYS RUN)
-  // --------------------------------------------------
 
   useFrame((state) => {
     if (!rootRef.current) return;
@@ -76,28 +83,20 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
     rootRef.current.frustumCulled = false;
   });
 
-  // --------------------------------------------------
-  // GUARD (AFTER HOOKS)
-  // --------------------------------------------------
-
   if (!data || !data.recipes?.length) return null;
 
   const recipes = data.recipes;
 
-  // ==================================================
-  // OVERVIEW MODE
-  // ==================================================
-
   if (selectedIndex === null) {
     return (
       <group ref={rootRef} frustumCulled={false} renderOrder={997}>
-        <group position={[0, -0.05, -1]}>
+        <group position={[0, -0.2, -1]} scale={0.75}>
           <group ref={panelRef}>
-          <RoundedBox args={[1.1, 0.75, 0.04]} radius={0.07}>
+            <RoundedBox args={[0.75, 0.75, 0]} radius={0.07}>
               <meshStandardMaterial
                 color="#111827"
-                transparent
-                opacity={0.92}
+                transparent={true}
+                opacity={0.75}
                 depthTest={false}
                 depthWrite={false}
               />
@@ -129,30 +128,39 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
     );
   }
 
-  // ==================================================
-  // DETAIL MODE
-  // ==================================================
-
   const recipe = recipes[Math.min(selectedIndex, recipes.length - 1)];
 
-  const have = recipe.ingredientsYouHave || [];
-  const missing = recipe.ingredientsMissing || [];
+  const allRecipeIngredients = [
+    ...(recipe.ingredientsYouHave || []),
+    ...(recipe.ingredientsMissing || []),
+  ];
+
+  const have = allRecipeIngredients.filter((ingName) => {
+    return shoppingItems.some(
+      (item) =>
+        ingName.toLowerCase().includes(item.label.toLowerCase()) ||
+        item.label.toLowerCase().includes(ingName.toLowerCase()),
+    );
+  });
+
+  const missing = allRecipeIngredients.filter(
+    (ingName) => !have.includes(ingName),
+  );
 
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={997}>
-      <group position={[0, -0.05, -1]}>
+      <group position={[0, -0.25, -1]} scale={0.7}>
         <group ref={panelRef}>
           <RoundedBox args={[1.25, 0.95, 0.04]} radius={0.08}>
             <meshStandardMaterial
               color="#111827"
-              transparent
-              opacity={0.94}
+              transparent={true}
+              opacity={0.9}
               depthTest={false}
               depthWrite={false}
             />
           </RoundedBox>
 
-          {/* TITLE */}
           <Text
             position={[0, 0.38, 0.03]}
             fontSize={0.05}
@@ -163,7 +171,6 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
             {recipe.title}
           </Text>
 
-          {/* META */}
           <Text
             position={[0, 0.28, 0.03]}
             fontSize={0.035}
@@ -175,7 +182,6 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
             }`}
           </Text>
 
-          {/* INGREDIENTS — YOU HAVE */}
           <Text
             position={[-0.5, 0.18, 0.03]}
             fontSize={0.03}
@@ -205,11 +211,10 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
               anchorX="left"
               maxWidth={0.9}
             >
-              ✓ {ing}
+              ✓ {ing.toUpperCase()}
             </Text>
           ))}
 
-          {/* INGREDIENTS — MISSING */}
           <Text
             position={[0.1, 0.18, 0.03]}
             fontSize={0.03}
@@ -239,11 +244,10 @@ export function SuggestRecipe({ data }: SuggestRecipeProps) {
               anchorX="left"
               maxWidth={0.9}
             >
-              ✕ {ing}
+              ✕ {ing.toUpperCase()}
             </Text>
           ))}
 
-          {/* CTA */}
           <Text
             position={[0, -0.38, 0.03]}
             fontSize={0.036}

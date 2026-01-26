@@ -51,7 +51,7 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
 
       micRef.current.scale.lerp(
         { x: targetScale, y: targetScale, z: targetScale } as any,
-        0.15
+        0.15,
       );
     }
   });
@@ -59,10 +59,14 @@ export function ControlPanel({ status, onMicClick }: ControlPanelProps) {
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={999}>
       {/* Camera-local offset (TOP-RIGHT). Tweak as you want. */}
-      <group position={[0.34, 0.22, -0.8]} renderOrder={999}>
+      <group position={[0.3, 0.15, -0.8]} renderOrder={999}>
         {/* Background */}
         <RoundedBox args={[0.18, 0.18, 0.03]} radius={0.09} smoothness={4}>
-          <meshStandardMaterial transparent opacity={0} depthWrite={false} />
+          <meshStandardMaterial
+            transparent={true}
+            opacity={0}
+            depthWrite={false}
+          />
         </RoundedBox>
 
         {/* Mic visuals */}

@@ -1,25 +1,26 @@
-import { Html } from "@react-three/drei";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { RoundedBox, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Group, Vector3, Quaternion } from "three";
+import { Group, Vector3, Quaternion, Mesh } from "three";
 import { useCookingState } from "@/state/cookingState";
 import { TimerItem } from "@/state/slices/timerSlice";
 
 interface TimerProps extends TimerItem {
   /**
-   * Vertical index used for stacking multiple timers in the HUD.
-   * If not provided, defaults to 0 (top).
+   * The vertical index for stacking multiple timers.
+   * Used to calculate the Y-offset so timers do not overlap in the HUD.
    */
   stackIndex?: number;
 }
 
 /**
- * 3D Component representing a single active timer.
+ * A 3D component representing a single active timer in the HUD.
  *
- * Fixes:
- * - Removed Html occlude (can hide HUD in XR unexpectedly).
- * - Alarm is now single-instance + guaranteed cleanup (StrictMode-safe).
- * - Countdown uses a stable interval ref (no re-creating per tick).
+ * Features:
+ * - XR Head-locking: Follows the user's view.
+ * - Visual Feedback: Changes color based on state (Running, Paused, Finished).
+ * - Audio Alarm: Plays a sound loop when the timer hits zero.
+ * - 3D Progress Bar: Visualizes remaining time using a dynamic mesh.
  */
 export function Timer({
   id,
@@ -28,26 +29,19 @@ export function Timer({
   status,
   stackIndex = 0,
 }: TimerProps) {
-  // --- Local State ---
   const [timeLeft, setTimeLeft] = useState(seconds);
   const [isFinished, setIsFinished] = useState(false);
 
-  // --- Refs ---
   const rootRef = useRef<Group>(null);
-
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const alarmStartedRef = useRef(false);
-
   const intervalRef = useRef<number | null>(null);
   const vanishTimeoutRef = useRef<number | null>(null);
-
   const prevSecondsRef = useRef(seconds);
 
-  // --- Temp objects (avoid allocations) ---
   const tmpPos = useRef(new Vector3()).current;
   const tmpQuat = useRef(new Quaternion()).current;
 
-  // --- Global Actions ---
   const { removeTimerById } = useCookingState();
 
   const clearTickInterval = useCallback(() => {
@@ -70,32 +64,26 @@ export function Timer({
       try {
         a.pause();
         a.currentTime = 0;
-      } catch {
-        // ignore
-      }
+      } catch {}
       a.loop = false;
     }
     audioRef.current = null;
   }, []);
 
   const playAlarmSound = useCallback(() => {
-    // Prevent double-start (React StrictMode / remounts / repeated effects)
     if (alarmStartedRef.current) return;
     alarmStartedRef.current = true;
 
-    // Stop any previous/ghost instance
     const old = audioRef.current;
     if (old) {
       try {
         old.pause();
         old.currentTime = 0;
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
 
     const a = new Audio(
-      "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
+      "https://actions.google.com/sounds/v1/alarms/beep_short.ogg",
     );
     a.loop = true;
     a.volume = 0.5;
@@ -111,7 +99,6 @@ export function Timer({
     return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // --- XR Head Lock ---
   useFrame((state) => {
     const camAny: any = state.camera;
     const cam = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
@@ -126,7 +113,6 @@ export function Timer({
     rootRef.current.frustumCulled = false;
   });
 
-  // Sync local timeLeft if prop seconds changes (add/subtract time)
   useEffect(() => {
     const delta = seconds - prevSecondsRef.current;
     if (delta !== 0) {
@@ -135,9 +121,7 @@ export function Timer({
     }
   }, [seconds]);
 
-  // React to status changes
   useEffect(() => {
-    // If the timer is not finished anymore (e.g. restarted), kill alarm + reset finish
     if (status !== "finished") {
       setIsFinished(false);
       stopAlarm();
@@ -148,7 +132,6 @@ export function Timer({
     }
   }, [status, stopAlarm, clearTickInterval]);
 
-  // Countdown tick when running
   useEffect(() => {
     if (status !== "running" || isFinished) {
       clearTickInterval();
@@ -171,7 +154,6 @@ export function Timer({
     return () => clearTickInterval();
   }, [status, isFinished, clearTickInterval]);
 
-  // When finished: start alarm + auto-remove (and stop) after 30s
   useEffect(() => {
     if (!isFinished) return;
 
@@ -180,7 +162,7 @@ export function Timer({
     vanishTimeoutRef.current = window.setTimeout(() => {
       stopAlarm();
       removeTimerById(id);
-    }, 5000);
+    }, 30000);
 
     return () => {
       if (vanishTimeoutRef.current !== null) {
@@ -190,7 +172,6 @@ export function Timer({
     };
   }, [isFinished, id, playAlarmSound, stopAlarm, removeTimerById]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       clearTickInterval();
@@ -198,58 +179,79 @@ export function Timer({
     };
   }, [clearTickInterval, stopAlarm]);
 
-  // --- Camera-local HUD offset ---
-  const xOffset = 0.55;
-  const yOffset = 0.25 - stackIndex * 0.18;
+  const xOffset = 0.45;
+  const yOffset = -0.15 - stackIndex * 0.18;
   const zOffset = -1;
 
-  // --- Render ---
+  const getBackgroundColor = () => {
+    if (isFinished) return "#7f1d1d";
+    if (status === "paused") return "#713f12";
+    return "#0f172a";
+  };
+
+  const getProgressColor = () => {
+    if (isFinished) return "#ef4444";
+    if (status === "paused") return "#facc15";
+    return "#3b82f6";
+  };
+
+  const progress = Math.max(0, Math.min(1, timeLeft / (seconds || 1)));
+  const barWidth = 0.35;
+  const currentBarWidth = barWidth * progress;
+
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={800}>
-      <group position={[xOffset, yOffset, zOffset]}>
-        {/* IMPORTANT: remove occlude for XR HUD stability */}
-        <Html transform scale={0.4}>
-          <div
-            className={`
-              w-48 p-4 rounded-2xl flex flex-col items-center select-none border backdrop-blur-md shadow-lg transition-all duration-500 
-              ${status === "idle" ? "opacity-50 grayscale" : ""}
-              ${status === "paused" ? "border-yellow-400 bg-yellow-400/10" : ""} 
-              ${
-                isFinished
-                  ? "bg-red-500/40 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse"
-                  : "bg-white/10 border-white/20 shadow-sm"
-              }
-            `}
+      <group position={[xOffset, yOffset, zOffset]} scale={0.6}>
+        <RoundedBox args={[0.45, 0.25, 0.02]} radius={0.05} smoothness={4}>
+          <meshStandardMaterial
+            color={getBackgroundColor()}
+            transparent={true}
+            opacity={0.9}
+            roughness={0.2}
+          />
+        </RoundedBox>
+
+        <group position={[0, 0, 0.02]}>
+          <Text
+            position={[0, 0.06, 0]}
+            fontSize={0.03}
+            color={status === "paused" ? "#facc15" : "#94a3b8"}
+            anchorX="center"
+            anchorY="bottom"
+            letterSpacing={0.05}
           >
-            <span className="uppercase tracking-wider text-[10px] font-bold mb-1 text-white/60">
-              {isFinished ? "TIME'S UP!" : label}{" "}
-              {status === "paused" && "(PAUSED)"}
-            </span>
+            {isFinished
+              ? "TIME'S UP!"
+              : `${label.toUpperCase()} ${status === "paused" ? "(PAUSED)" : ""}`}
+          </Text>
 
-            <div className="text-4xl font-mono font-medium text-white tracking-tight drop-shadow-sm">
-              {isFinished ? "0:00" : formatTime(timeLeft)}
-            </div>
+          <Text
+            position={[0, -0.01, 0]}
+            fontSize={0.09}
+            color="white"
+            anchorX="center"
+            anchorY="middle"
+            font="https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxM.woff"
+          >
+            {isFinished ? "0:00" : formatTime(timeLeft)}
+          </Text>
 
-            <div className="h-1 w-full bg-black/20 rounded-full mt-3 overflow-hidden">
-              <div
-                className={`h-full transition-all duration-1000 ease-linear ${
-                  isFinished
-                    ? "bg-red-500 w-full"
-                    : status === "paused"
-                      ? "bg-yellow-400"
-                      : "bg-white/80"
-                }`}
-                style={{
-                  width: isFinished
-                    ? "100%"
-                    : seconds > 0
-                      ? `${Math.min(100, (timeLeft / seconds) * 100)}%`
-                      : "0%",
-                }}
+          <group position={[0, -0.07, 0]}>
+            <mesh position={[0, 0, 0]}>
+              <planeGeometry args={[barWidth, 0.015]} />
+              <meshBasicMaterial
+                color="white"
+                opacity={0.2}
+                transparent={true}
               />
-            </div>
-          </div>
-        </Html>
+            </mesh>
+
+            <mesh position={[-barWidth / 2 + currentBarWidth / 2, 0, 0.001]}>
+              <planeGeometry args={[currentBarWidth, 0.015]} />
+              <meshBasicMaterial color={getProgressColor()} />
+            </mesh>
+          </group>
+        </group>
       </group>
     </group>
   );

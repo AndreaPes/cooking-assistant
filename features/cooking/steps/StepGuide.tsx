@@ -1,109 +1,174 @@
-import { Html } from "@react-three/drei";
 import { useRef } from "react";
+import { Text, RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Group, Quaternion, Vector3 } from "three";
+import { Group, Quaternion, Vector3, Mesh } from "three";
 import { AtomicStep } from "@/types/interfaces";
-import { AlertTriangle } from "lucide-react";
 
 interface StepGuideProps {
+  /**
+   * The current cooking step to display.
+   */
   step: AtomicStep;
+  /**
+   * The zero-based index of the current step.
+   */
   stepIndex: number;
+  /**
+   * The total number of steps in the recipe.
+   */
   totalSteps: number;
 }
 
+/**
+ * A 3D head-locked HUD component that displays the current cooking step instructions.
+ *
+ * Features:
+ * - Shows the step counter (e.g., Step 01 / 10).
+ * - Displays high-priority warnings (e.g., "HOT OIL") with a pulsating animation.
+ * - highlights the main action verb and target object for quick reading.
+ * - Provides detailed instructions in a secondary text block.
+ */
 export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
   const rootRef = useRef<Group>(null);
+  const warningRef = useRef<Mesh>(null);
 
-  // temp objects (NO allocations per frame)
   const tmpPos = useRef(new Vector3()).current;
   const tmpQuat = useRef(new Quaternion()).current;
 
-  // --------------------------------------------------
-  // XR HEAD-LOCK (HOOK MUST ALWAYS RUN)
-  // --------------------------------------------------
   useFrame((state) => {
-    if (!rootRef.current) return;
+    if (rootRef.current) {
+      const camAny: any = state.camera;
+      const cam = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
 
-    const camAny: any = state.camera;
-    const cam = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
+      cam.getWorldPosition(tmpPos);
+      cam.getWorldQuaternion(tmpQuat);
 
-    cam.getWorldPosition(tmpPos);
-    cam.getWorldQuaternion(tmpQuat);
+      rootRef.current.position.copy(tmpPos);
+      rootRef.current.quaternion.copy(tmpQuat);
+      rootRef.current.frustumCulled = false;
+    }
 
-    rootRef.current.position.copy(tmpPos);
-    rootRef.current.quaternion.copy(tmpQuat);
-    rootRef.current.frustumCulled = false;
+    if (step?.warning && warningRef.current) {
+      const pulse = 1 + Math.sin(state.clock.elapsedTime * 8) * 0.05;
+      warningRef.current.scale.set(pulse, pulse, 1);
+    }
   });
 
-  // --------------------------------------------------
-  // GUARD (AFTER HOOKS)
-  // --------------------------------------------------
   if (!step) return null;
 
   const current = (stepIndex + 1).toString().padStart(2, "0");
   const total = totalSteps.toString().padStart(2, "0");
+  const actionColor = "#f97316";
 
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={900}>
-      {/* Camera-local offset: center, slightly lower than eye level */}
-      <group position={[0, -0.15, -1]} renderOrder={900}>
-        <Html transform center occlude scale={0.4}>
-          <div className="flex flex-col items-center select-none animate-in fade-in zoom-in duration-300 w-[500px]">
-            {/* 1. STEP COUNTER */}
-            <div className="mb-4 px-4 py-1 bg-black/60 backdrop-blur-md rounded-full border border-white/20 shadow-lg">
-              <span className="text-orange-400 font-mono text-sm font-bold tracking-widest">
-                STEP {current} <span className="text-white/40">/</span> {total}
-              </span>
-            </div>
+      <group position={[0, 0.2, -1]} scale={0.6}>
+        <RoundedBox args={[0.9, 0.8, 0.02]} radius={0.05} smoothness={4}>
+          <meshStandardMaterial
+            color="#0f172a"
+            transparent={true}
+            opacity={0.9}
+            roughness={0.2}
+          />
+        </RoundedBox>
 
-            {/* 2. SAFETY WARNING */}
-            {step.warning && (
-              <div className="mb-6 flex items-center gap-4 pl-2 pr-6 py-2 bg-red-500/10 backdrop-blur-2xl border border-red-500/20 rounded-full shadow-lg">
-                <div className="w-10 h-10 rounded-full bg-yellow-500 flex items-center justify-center shadow-inner text-white">
-                  <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
-                </div>
+        <group position={[-0.28, 0.28, 0.02]}>
+          <RoundedBox args={[0.25, 0.08, 0.01]} radius={0.02}>
+            <meshStandardMaterial color="#1e293b" />
+          </RoundedBox>
+          <Text
+            position={[0, 0, 0.01]}
+            fontSize={0.04}
+            color="#fb923c"
+            anchorX="center"
+            anchorY="middle"
+            letterSpacing={0.05}
+          >
+            STEP {current} / {total}
+          </Text>
+        </group>
 
-                <p className="font-bold text-white uppercase tracking-wider text-sm drop-shadow-md">
-                  {step.warning}
-                </p>
-              </div>
-            )}
+        {step.warning && (
+          <group position={[0.2, 0.22, 0.02]}>
+            <RoundedBox
+              ref={warningRef}
+              args={[0.35, 0.08, 0.01]}
+              radius={0.02}
+            >
+              <meshStandardMaterial color="#7f1d1d" />
+            </RoundedBox>
+            <Text
+              position={[0, 0, 0.02]}
+              fontSize={0.035}
+              color="#fca5a5"
+              anchorX="center"
+              anchorY="middle"
+              fontWeight="bold"
+            >
+              ⚠️ {step.warning}
+            </Text>
+          </group>
+        )}
 
-            {/* 3. MAIN ACTION */}
-            <div className="flex flex-row items-center justify-center gap-8 px-10 py-8 rounded-[2rem] bg-gray-900/60 backdrop-blur-xl border border-white/10 shadow-2xl w-full">
-              <div className="flex flex-col items-center">
-                <span className="text-[11px] text-white/40 font-bold tracking-[0.2em] uppercase mb-1">
-                  ACTION
-                </span>
-                <h1 className="text-5xl font-black text-orange-500 tracking-tighter uppercase leading-none drop-shadow-sm">
-                  {step.actionVerb}
-                </h1>
-              </div>
+        <group position={[0, 0.1, 0.03]}>
+          <Text
+            position={[-0.38, 0, 0]}
+            fontSize={0.035}
+            color="#94a3b8"
+            anchorX="left"
+            anchorY="bottom"
+          >
+            ACTION
+          </Text>
+          <Text
+            position={[-0.38, -0.12, 0]}
+            fontSize={0.12}
+            color={actionColor}
+            anchorX="left"
+            anchorY="bottom"
+            maxWidth={0.8}
+          >
+            {step.actionVerb}
+          </Text>
 
-              <div className="w-px h-16 bg-gradient-to-b from-transparent via-white/20 to-transparent" />
+          <Text
+            position={[-0.38, -0.18, 0]}
+            fontSize={0.035}
+            color="#94a3b8"
+            anchorX="left"
+            anchorY="top"
+          >
+            TARGET
+          </Text>
+          <Text
+            position={[-0.38, -0.22, 0]}
+            fontSize={0.09}
+            color="white"
+            anchorX="left"
+            anchorY="top"
+            maxWidth={0.8}
+          >
+            {step.targetObject}
+          </Text>
+        </group>
 
-              <div className="flex flex-col items-start max-w-[220px]">
-                <span className="text-[11px] text-white/40 font-bold tracking-[0.2em] uppercase mb-1">
-                  TARGET
-                </span>
-                <h2 className="text-4xl font-bold text-white uppercase leading-none drop-shadow-sm break-words text-left">
-                  {step.targetObject}
-                </h2>
-              </div>
-            </div>
+        <mesh position={[0, -0.28, 0.02]}>
+          <planeGeometry args={[0.8, 0.005]} />
+          <meshBasicMaterial color="white" opacity={0.1} transparent={true} />
+        </mesh>
 
-            {/* 4. DETAILS */}
-            {step.details && (
-              <div className="mt-4 w-full flex justify-center">
-                <div className="px-6 py-3 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 max-w-[90%]">
-                  <p className="text-white/90 text-sm font-medium text-center leading-relaxed">
-                    {step.details}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </Html>
+        <Text
+          position={[0, -0.32, 0.03]}
+          fontSize={0.035}
+          color="#e2e8f0"
+          anchorX="center"
+          anchorY="top"
+          maxWidth={0.8}
+          textAlign="center"
+          lineHeight={1.4}
+        >
+          {step.details}
+        </Text>
       </group>
     </group>
   );

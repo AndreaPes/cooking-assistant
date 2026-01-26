@@ -1,49 +1,74 @@
-import { Html } from "@react-three/drei";
 import { useState, useEffect, useRef } from "react";
+import { RoundedBox, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Group, Quaternion, Vector3 } from "three";
+import { Group, Quaternion, Vector3, Mesh } from "three";
 import {
   useShoppingState,
   loadShoppingFromServer,
 } from "@/state/shoppingState";
 
 interface ShoppingItemProps {
+  /**
+   * The display title for the shopping list panel.
+   */
   label: string;
+  /**
+   * Optional quantity identifier (unused in current render logic).
+   */
   quantity?: number;
 }
 
 const ITEMS_PER_PAGE = 5;
 
+/**
+ * A 3D interactive shopping list HUD component.
+ *
+ * Features:
+ * - XR Head-locking: Floats in the user's view (typically positioned to the side).
+ * - Visual Feedback: The panel border flashes orange when a new item is added.
+ * - Pagination: Supports navigation through large lists of ingredients.
+ * - Auto-Refresh: Automatically updates when the global shopping state changes.
+ */
 export function ShoppingList({ label }: ShoppingItemProps) {
   const { items } = useShoppingState();
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
 
-  // ---------------------------------------------------------------------------
-  // XR CAMERA LOCK
-  // ---------------------------------------------------------------------------
   const rootRef = useRef<Group>(null);
+  const borderRef = useRef<Mesh>(null);
 
   const tmpPos = useRef(new Vector3()).current;
   const tmpQuat = useRef(new Quaternion()).current;
 
   useFrame((state) => {
-    const camAny: any = state.camera;
-    const cam = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
+    if (rootRef.current) {
+      const camAny: any = state.camera;
+      const cam = camAny.isArrayCamera ? camAny.cameras[0] : camAny;
 
-    if (!rootRef.current) return;
+      cam.getWorldPosition(tmpPos);
+      cam.getWorldQuaternion(tmpQuat);
 
-    cam.getWorldPosition(tmpPos);
-    cam.getWorldQuaternion(tmpQuat);
+      rootRef.current.position.copy(tmpPos);
+      rootRef.current.quaternion.copy(tmpQuat);
+      rootRef.current.frustumCulled = false;
+    }
 
-    rootRef.current.position.copy(tmpPos);
-    rootRef.current.quaternion.copy(tmpQuat);
-    rootRef.current.frustumCulled = false;
+    if (borderRef.current) {
+      if (lastAdded) {
+        const pulse = 0.5 + Math.sin(state.clock.elapsedTime * 15) * 0.5;
+        (borderRef.current.material as any).color.setHSL(
+          0.08,
+          1,
+          0.3 + pulse * 0.2,
+        );
+        (borderRef.current.material as any).opacity = 0.8;
+      } else {
+        (borderRef.current.material as any).color.setHex(0xffffff);
+        (borderRef.current.material as any).opacity = 0.1;
+      }
+    }
   });
 
-  // ---------------------------------------------------------------------------
-  // FLASH EFFECT LOGIC (UNCHANGED)
-  // ---------------------------------------------------------------------------
   const hideTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -60,16 +85,10 @@ export function ShoppingList({ label }: ShoppingItemProps) {
     };
   }, [lastAdded]);
 
-  // ---------------------------------------------------------------------------
-  // INITIAL LOAD (UNCHANGED)
-  // ---------------------------------------------------------------------------
   useEffect(() => {
     loadShoppingFromServer();
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // NEW ITEM DETECTION (UNCHANGED)
-  // ---------------------------------------------------------------------------
   const prevFirstId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -77,26 +96,20 @@ export function ShoppingList({ label }: ShoppingItemProps) {
       prevFirstId.current = null;
       return;
     }
-
     const first = items[0];
-
     if (prevFirstId.current && prevFirstId.current !== first.id) {
       setLastAdded(
-        `${first.label}${first.quantity ? ` × ${first.quantity}` : ""}`
+        `${first.label}${first.quantity ? ` × ${first.quantity}` : ""}`,
       );
       setCurrentPage(0);
     }
-
     prevFirstId.current = first.id;
   }, [items]);
 
-  // ---------------------------------------------------------------------------
-  // PAGINATION (UNCHANGED)
-  // ---------------------------------------------------------------------------
   const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
   const visibleItems = items.slice(
     currentPage * ITEMS_PER_PAGE,
-    (currentPage + 1) * ITEMS_PER_PAGE
+    (currentPage + 1) * ITEMS_PER_PAGE,
   );
 
   const nextPage = () => setCurrentPage((p) => Math.min(p + 1, totalPages - 1));
@@ -104,104 +117,167 @@ export function ShoppingList({ label }: ShoppingItemProps) {
 
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={950}>
-      {/* Camera-local offset: RIGHT SIDE */}
-      <group position={[0.55, 0, -1.2]} renderOrder={950}>
-        <Html transform occlude scale={0.4}>
-          <div
-            className={`
-              w-[320px] p-6 rounded-[2rem] flex flex-col border transition-all duration-500
-              ${
-                lastAdded
-                  ? "bg-gray-900/90 border-orange-500/50 shadow-[0_0_40px_rgba(249,115,22,0.3)]"
-                  : "bg-gray-900/60 backdrop-blur-xl border-white/10 shadow-xl"
-              }
-            `}
+      <group position={[0, 0, -1]} scale={0.55}>
+        <group>
+          <RoundedBox ref={borderRef} args={[0.62, 0.82, 0.01]} radius={0.06}>
+            <meshBasicMaterial color="white" transparent={true} opacity={0.1} />
+          </RoundedBox>
+
+          <RoundedBox args={[0.6, 0.8, 0.02]} radius={0.05} smoothness={4}>
+            <meshStandardMaterial
+              color="#0f172a"
+              transparent={true}
+              opacity={0.92}
+              roughness={0.2}
+            />
+          </RoundedBox>
+        </group>
+
+        <group position={[0, 0.32, 0.03]}>
+          <Text
+            fontSize={0.045}
+            color={lastAdded ? "#f97316" : "#ffffff"}
+            anchorX="center"
+            maxWidth={0.5}
           >
-            {/* HEADER */}
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
-              <h2 className="text-xl font-black text-orange-500 uppercase tracking-tight">
-                {lastAdded ? "ITEM ADDED" : label || "SHOPPING"}
-              </h2>
+            {lastAdded ? "ITEM ADDED!" : label || "SHOPPING LIST"}
+          </Text>
 
-              <div className="text-right">
-                <div className="text-2xl font-mono font-bold text-white/20 leading-none">
-                  {items.length.toString().padStart(2, "0")}
-                </div>
-                <div className="text-[9px] text-white/30 font-bold uppercase tracking-widest mt-1">
-                  TOTAL
-                </div>
-              </div>
-            </div>
+          <Text
+            position={[0.22, 0, 0]}
+            fontSize={0.025}
+            color="#9ca3af"
+            anchorX="right"
+          >
+            {items.length}
+          </Text>
+        </group>
 
-            {/* LIST */}
-            <div className="min-h-[280px] flex flex-col gap-2">
-              {items.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-white/30 text-sm italic font-medium">
-                  Your list is empty
-                </div>
-              ) : (
-                visibleItems.map((item, index) => {
-                  const absoluteIndex =
-                    index + 1 + currentPage * ITEMS_PER_PAGE;
+        <mesh position={[0, 0.28, 0.03]}>
+          <planeGeometry args={[0.5, 0.003]} />
+          <meshBasicMaterial color="white" opacity={0.2} transparent={true} />
+        </mesh>
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex justify-between items-center p-3 bg-black/20 rounded-xl border border-white/5 animate-in fade-in slide-in-from-right-4 duration-300"
-                      style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <span className="text-white/20 font-mono text-xs font-bold w-5">
-                          {absoluteIndex}
-                        </span>
-                        <span className="text-white font-medium text-sm capitalize truncate">
-                          {item.label}
-                        </span>
-                      </div>
+        <group position={[0, 0.2, 0.03]}>
+          {items.length === 0 ? (
+            <Text position={[0, -0.2, 0]} fontSize={0.03} color="#64748b">
+              Your list is empty
+            </Text>
+          ) : (
+            visibleItems.map((item, index) => {
+              const rowY = -index * 0.11;
+              const absoluteIndex = index + 1 + currentPage * ITEMS_PER_PAGE;
 
-                      {item.quantity && item.quantity > 1 && (
-                        <span className="px-2 py-1 bg-white/10 rounded-md text-[10px] font-mono text-white/70 font-bold">
-                          x{item.quantity}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+              return (
+                <group key={item.id} position={[0, rowY, 0]}>
+                  <RoundedBox args={[0.52, 0.09, 0.005]} radius={0.02}>
+                    <meshBasicMaterial
+                      color="white"
+                      transparent={true}
+                      opacity={index % 2 === 0 ? 0.05 : 0.02}
+                    />
+                  </RoundedBox>
 
-            {/* PAGINATION */}
-            {totalPages > 1 && (
-              <div className="mt-4 pt-3 border-t border-white/10 flex justify-between items-center">
-                <button
-                  onClick={prevPage}
-                  disabled={currentPage === 0}
-                  className={`w-8 h-8 rounded-full border border-white/10 ${
-                    currentPage === 0 ? "opacity-20" : "hover:bg-white/10"
-                  }`}
-                >
-                  ←
-                </button>
+                  <Text
+                    position={[-0.23, 0, 0.01]}
+                    fontSize={0.025}
+                    color="#64748b"
+                    anchorX="left"
+                    anchorY="middle"
+                  >
+                    {absoluteIndex}.
+                  </Text>
 
-                <span className="text-[10px] font-mono font-bold text-white/40">
-                  PAGE {currentPage + 1} / {totalPages}
-                </span>
+                  <Text
+                    position={[-0.18, 0, 0.01]}
+                    fontSize={0.035}
+                    color="white"
+                    anchorX="left"
+                    anchorY="middle"
+                    maxWidth={0.3}
+                  >
+                    {item.label.charAt(0).toUpperCase() +
+                      item.label.slice(1)}{" "}
+                  </Text>
 
-                <button
-                  onClick={nextPage}
-                  disabled={currentPage >= totalPages - 1}
-                  className={`w-8 h-8 rounded-full border border-white/10 ${
-                    currentPage >= totalPages - 1
-                      ? "opacity-20"
-                      : "hover:bg-white/10"
-                  }`}
-                >
-                  →
-                </button>
-              </div>
-            )}
-          </div>
-        </Html>
+                  {item.quantity && item.quantity > 1 && (
+                    <group position={[0.2, 0, 0.01]}>
+                      <RoundedBox args={[0.08, 0.05, 0.005]} radius={0.01}>
+                        <meshBasicMaterial
+                          color="#ffffff"
+                          transparent={true}
+                          opacity={0.15}
+                        />
+                      </RoundedBox>
+                      <Text
+                        fontSize={0.025}
+                        color="#e2e8f0"
+                        anchorX="center"
+                        anchorY="middle"
+                      >
+                        x{item.quantity}
+                      </Text>
+                    </group>
+                  )}
+                </group>
+              );
+            })
+          )}
+        </group>
+
+        {totalPages > 1 && (
+          <group position={[0, -0.32, 0.04]}>
+            <group position={[-0.15, 0, 0]}>
+              <mesh
+                onClick={(e) => {
+                  e.stopPropagation();
+                  prevPage();
+                }}
+                visible={currentPage > 0}
+              >
+                <planeGeometry args={[0.1, 0.1]} />
+                <meshBasicMaterial visible={false} />
+              </mesh>
+              <Text
+                fontSize={0.05}
+                color={currentPage > 0 ? "white" : "#4b5563"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  prevPage();
+                }}
+              >
+                ←
+              </Text>
+            </group>
+
+            <Text fontSize={0.025} color="#94a3b8" letterSpacing={0.05}>
+              PAGE {currentPage + 1} / {totalPages}
+            </Text>
+
+            <group position={[0.15, 0, 0]}>
+              <mesh
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nextPage();
+                }}
+                visible={currentPage < totalPages - 1}
+              >
+                <planeGeometry args={[0.1, 0.1]} />
+                <meshBasicMaterial visible={false} />
+              </mesh>
+              <Text
+                fontSize={0.05}
+                color={currentPage < totalPages - 1 ? "white" : "#4b5563"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nextPage();
+                }}
+              >
+                →
+              </Text>
+            </group>
+          </group>
+        )}
       </group>
     </group>
   );

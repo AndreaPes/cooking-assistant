@@ -31,7 +31,11 @@ export async function POST(req: Request) {
     // 🎤 SPEECH → TEXT
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(tempPath),
-      model: "gpt-4o-transcribe",
+      model: "whisper-1",
+      language: "en",
+      prompt:
+        "A cooking assistant command. Talk about recipes, ingredients, steps. Short concise English.",
+      temperature: 0,
     });
 
     fs.unlink(tempPath, () => {});
