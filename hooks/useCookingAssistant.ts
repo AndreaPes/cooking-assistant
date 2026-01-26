@@ -245,11 +245,22 @@ export function useCookingAssistant(
       case "FRIDGE_INVENTORY":
         const fridgeAction = action.action;
 
-        if (fridgeAction === "scan" && videoRef.current) {
+        if (fridgeAction === "scan") { // && videoRef.current) {
           setToastMessage("📸 Analyzing Fridge...");
+          const newScannedItems = [
+            { name: "cream cheese", quantity: 1 },
+            { name: "honey", quantity: 1 },
+            { name: "plain biscuits", quantity: 1 },
+            { name: "butter", quantity: 1 },
+            { name: "fruit jam", quantity: 1 },
+            { name: "fresh fruit", quantity: 1 },
+          ];
+
+          /*
           const newScannedItems = await detectIngredientsFromImage(
             videoRef.current,
           );
+          */
 
           if (newScannedItems.length > 0) {
             addFridgeItems(newScannedItems);
@@ -391,10 +402,10 @@ export function useCookingAssistant(
         selectedRecipe: previewRecipe,
         activeRecipe: freshState.activeRecipe
           ? {
-              title: freshState.activeRecipe.title,
-              steps: freshState.activeRecipe.steps,
-              currentStepIndex: freshState.currentStepIndex,
-            }
+            title: freshState.activeRecipe.title,
+            steps: freshState.activeRecipe.steps,
+            currentStepIndex: freshState.currentStepIndex,
+          }
           : null,
       };
 

@@ -63,7 +63,7 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={900}>
       <group position={[0, 0.2, -1]} scale={0.6}>
-        <RoundedBox args={[0.9, 0.8, 0.02]} radius={0.05} smoothness={4}>
+        <RoundedBox args={[0.9, 0.9, 0.02]} radius={0.05} smoothness={4}>
           <meshStandardMaterial
             color="#0f172a"
             transparent={true}

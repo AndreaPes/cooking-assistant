@@ -162,7 +162,7 @@ export function Timer({
     vanishTimeoutRef.current = window.setTimeout(() => {
       stopAlarm();
       removeTimerById(id);
-    }, 30000);
+    }, 10000);
 
     return () => {
       if (vanishTimeoutRef.current !== null) {
