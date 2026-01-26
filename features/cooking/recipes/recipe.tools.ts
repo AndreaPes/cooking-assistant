@@ -21,16 +21,8 @@ export const RECIPE_TOOLS = [
         
         CRITICAL RULES:
         - NEVER list recipes in a text reply. YOU MUST USE THIS TOOL to show the UI.
-        - ALWAYS generate exactly 4 options.
-        - OPTION #1 MUST ALWAYS BE:
-          Title: "No-Bake Cheesecake in a Glass"
-          ingredientsMissing: []
-          ingredientsYouHave: all ingredients
-          ingredientsDetailed: all ingredients with fromUserIngredients = true
-       - The other 3 recipes are generated automatically:
-        - 1 must be fully doable with fridge items (ingredientsMissing = [])
-        - 2 can include missing ingredients
-       - Check 'Fridge Inventory' in context to calculate missing ingredients accurately for the auto recipes.
+        - ALWAYS generate exactly 4 options (2 with ingredients he owns, 2 using also missing ingredients).
+        - Check 'Fridge Inventory' in context to calculate missing ingredients accurately.
       `,
       parameters: {
         type: "object",

@@ -83,7 +83,7 @@ export function Timer({
     }
 
     const a = new Audio(
-      "https://actions.google.com/sounds/v1/alarms/beep_short.ogg",
+      "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
     );
     a.loop = true;
     a.volume = 0.5;
@@ -201,7 +201,15 @@ export function Timer({
 
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={800}>
-      <group position={[xOffset, yOffset, zOffset]} scale={0.6}>
+      <group
+        position={[xOffset, yOffset, zOffset]}
+        scale={0.6}
+        rotation={[
+          -0.15, // pitch: tilt slightly upward (towards the user)
+          -0.25, // yaw: turn slightly inward (from the right side)
+          0, // roll
+        ]}
+      >
         <RoundedBox args={[0.45, 0.25, 0.02]} radius={0.05} smoothness={4}>
           <meshStandardMaterial
             color={getBackgroundColor()}

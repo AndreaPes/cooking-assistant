@@ -69,16 +69,6 @@ export function NotificationBadge({
             />
           </RoundedBox>
 
-          {/* Icon dot */}
-          <mesh position={[-0.23, 0, 0.02]}>
-            <circleGeometry args={[0.025, 24]} />
-            <meshStandardMaterial
-              color={styles[variant].color}
-              depthTest={false}
-              depthWrite={false}
-            />
-          </mesh>
-
           {/* Text */}
           <Text
             position={[0.02, 0, 0.02]}

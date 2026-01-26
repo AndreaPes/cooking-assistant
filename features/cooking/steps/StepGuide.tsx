@@ -63,7 +63,7 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
   return (
     <group ref={rootRef} frustumCulled={false} renderOrder={900}>
       <group position={[0, 0.2, -1]} scale={0.6}>
-        <RoundedBox args={[0.9, 0.9, 0.02]} radius={0.05} smoothness={4}>
+        <RoundedBox args={[0.9, 0.7, 0.02]} radius={0.05} smoothness={4}>
           <meshStandardMaterial
             color="#0f172a"
             transparent={true}
@@ -72,12 +72,9 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
           />
         </RoundedBox>
 
-        <group position={[-0.28, 0.28, 0.02]}>
-          <RoundedBox args={[0.25, 0.08, 0.01]} radius={0.02}>
-            <meshStandardMaterial color="#1e293b" />
-          </RoundedBox>
+        <group position={[-0.28, 0.18, 0.02]}>
           <Text
-            position={[0, 0, 0.01]}
+            position={[0, 0.09, 0.01]}
             fontSize={0.04}
             color="#fb923c"
             anchorX="center"
@@ -89,7 +86,7 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
         </group>
 
         {step.warning && (
-          <group position={[0.2, 0.22, 0.02]}>
+          <group position={[0.2, 0.12, 0.02]}>
             <RoundedBox
               ref={warningRef}
               args={[0.35, 0.08, 0.01]}
@@ -110,9 +107,9 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
           </group>
         )}
 
-        <group position={[0, 0.1, 0.03]}>
+        <group position={[0, 0.05, 0.03]}>
           <Text
-            position={[-0.38, 0, 0]}
+            position={[-0.38, 0.1, 0]}
             fontSize={0.035}
             color="#94a3b8"
             anchorX="left"
@@ -121,8 +118,8 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
             ACTION
           </Text>
           <Text
-            position={[-0.38, -0.12, 0]}
-            fontSize={0.12}
+            position={[-0.38, 0, 0]}
+            fontSize={0.08}
             color={actionColor}
             anchorX="left"
             anchorY="bottom"
@@ -132,7 +129,7 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
           </Text>
 
           <Text
-            position={[-0.38, -0.18, 0]}
+            position={[-0.38, 0, 0]}
             fontSize={0.035}
             color="#94a3b8"
             anchorX="left"
@@ -141,8 +138,8 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
             TARGET
           </Text>
           <Text
-            position={[-0.38, -0.22, 0]}
-            fontSize={0.09}
+            position={[-0.38, -0.04, 0]}
+            fontSize={0.08}
             color="white"
             anchorX="left"
             anchorY="top"
@@ -152,13 +149,13 @@ export function StepGuide({ step, stepIndex, totalSteps }: StepGuideProps) {
           </Text>
         </group>
 
-        <mesh position={[0, -0.28, 0.02]}>
+        <mesh position={[0, -0.12, 0.02]}>
           <planeGeometry args={[0.8, 0.005]} />
           <meshBasicMaterial color="white" opacity={0.1} transparent={true} />
         </mesh>
 
         <Text
-          position={[0, -0.32, 0.03]}
+          position={[0, -0.15, 0.03]}
           fontSize={0.035}
           color="#e2e8f0"
           anchorX="center"
