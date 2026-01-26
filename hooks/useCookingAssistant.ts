@@ -6,6 +6,7 @@ import { AssistantStatus, useAssistantState } from "@/state/assistantState";
 import { useFridgeInventoryState } from "@/state/slices/fridgeInventorySlice";
 import { useShoppingState } from "@/state/shoppingState";
 import { detectIngredientsFromImage } from "@/features/fridge/detectIngredients";
+import { PINNED_RECIPE, PINNED_RECIPE_STEPS } from "@/lib/pinnedRecipe";
 import { AIResponse, AtomicStep } from "@/types/interfaces";
 
 /**
@@ -104,13 +105,24 @@ export function useCookingAssistant(
       // 1. GENERATE / START COOKING
       case "GENERATE_RECIPE":
         if (action.recipe) {
-          loadRecipe(action.recipe);
-          setAiState(null); // Clear menu
+          const isPinned =
+            action.recipe.title === PINNED_RECIPE.title;
+
+          const recipeWithSteps = isPinned
+            ? {
+              ...action.recipe,
+              steps: PINNED_RECIPE_STEPS,
+            }
+            : action.recipe;
+
+          loadRecipe(recipeWithSteps);
+          setAiState(null);
           setSuggestion(null);
 
           jumpToStep(0);
-          if (action.recipe.steps?.length > 0) {
-            checkAndSpawnTimer(action.recipe.steps[0]);
+
+          if (recipeWithSteps.steps?.length > 0) {
+            checkAndSpawnTimer(recipeWithSteps.steps[0]);
           }
         }
         break;
@@ -161,10 +173,18 @@ export function useCookingAssistant(
         const incomingData = action.data || {};
         const currentRecipes =
           useCookingState.getState().suggestion?.recipes || [];
+
         const hasNewRecipes =
           incomingData.recipes && incomingData.recipes.length > 0;
+
         const recipesToSet = hasNewRecipes
-          ? incomingData.recipes
+          ? [
+            PINNED_RECIPE,
+            ...incomingData.recipes.filter(
+              (r: { title?: string }) =>
+                r.title !== PINNED_RECIPE.title
+            ),
+          ].slice(0, 4)
           : currentRecipes;
 
         const newData = {

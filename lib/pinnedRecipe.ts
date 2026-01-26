@@ -14,7 +14,7 @@ export const PINNED_RECIPE: SingleRecipe = {
   difficulty: "easy",
 
   ingredientsYouHave: [
-    "cream cheese (Philadelphia)",
+    "cream cheese",
     "honey",
     "plain biscuits",
     "butter",
@@ -24,7 +24,7 @@ export const PINNED_RECIPE: SingleRecipe = {
   ingredientsMissing: [],
 
   ingredientsDetailed: [
-    { name: "cream cheese (Philadelphia)", quantity: 120, unit: "g", fromUserIngredients: true },
+    { name: "cream cheese", quantity: 120, unit: "g", fromUserIngredients: true },
     { name: "honey", quantity: 1.5, unit: "tbsp", fromUserIngredients: true },
     { name: "plain biscuits", quantity: 30, unit: "g", fromUserIngredients: true },
     { name: "butter", quantity: 25, unit: "g", fromUserIngredients: true },
@@ -33,40 +33,179 @@ export const PINNED_RECIPE: SingleRecipe = {
   ],
 };
 
-/**
- * 2) The pinned cooking steps (exactly as you wrote them)
- *
- * NOTE:
- * If your cooking steps tool expects more fields (warning/timerSeconds/etc)
- * we can add them later, but "instruction" is the important one.
- */
 export const PINNED_RECIPE_STEPS = [
-  // Base
-  { instruction: "Crush 30 g plain biscuits into fine crumbs." },
-  { instruction: "Put the crumbs in a bowl." },
-  { instruction: "Add 25 g softened butter." },
-  { instruction: "Mix until evenly combined." },
-  { instruction: "Check texture: crumbs hold together when pressed." },
-  { instruction: "Spoon the mixture into the glasses." },
-  { instruction: "Press gently to form an even base." },
+  {
+    id: "s1",
+    actionVerb: "CRUSH",
+    targetObject: "BISCUITS",
+    details: "Crush 30 g of plain biscuits into fine crumbs.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s2",
+    actionVerb: "ADD",
+    targetObject: "BISCUITS",
+    details: "Put the crumbs in a bowl.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s3",
+    actionVerb: "ADD",
+    targetObject: "BUTTER",
+    details: "Add 25 g of softened butter.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s4",
+    actionVerb: "MIX",
+    targetObject: "BASE",
+    details: "Mix until evenly combined.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s5",
+    actionVerb: "CHECK",
+    targetObject: "TEXTURE",
+    details: "Check texture: crumbs should hold together when pressed.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s6",
+    actionVerb: "SPOON",
+    targetObject: "BASE",
+    details: "Spoon the mixture into the glasses.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s7",
+    actionVerb: "PRESS",
+    targetObject: "BASE",
+    details: "Press gently to form an even base.",
+    timerSeconds: 0,
+    warning: null,
+  },
 
   // Cream
-  { instruction: "Place 120 g cream cheese (Philadelphia) in a bowl." },
-  { instruction: "Add 1½ tablespoons honey." },
-  { instruction: "Mix slowly." },
-  { instruction: "Scrape the sides of the bowl." },
-  { instruction: "Mix again until smooth." },
-  { instruction: "Check texture: creamy and lump-free." },
+  {
+    id: "s8",
+    actionVerb: "ADD",
+    targetObject: "CREAM CHEESE",
+    details: "Place 120 g of cream cheese in a bowl.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s9",
+    actionVerb: "ADD",
+    targetObject: "HONEY",
+    details: "Add 1½ tablespoons of honey.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s10",
+    actionVerb: "MIX",
+    targetObject: "CREAM",
+    details: "Mix slowly.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s11",
+    actionVerb: "SCRAPE",
+    targetObject: "BOWL",
+    details: "Scrape the sides of the bowl.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s12",
+    actionVerb: "MIX",
+    targetObject: "CREAM",
+    details: "Mix again until smooth.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s13",
+    actionVerb: "CHECK",
+    targetObject: "TEXTURE",
+    details: "Check texture: creamy and lump-free.",
+    timerSeconds: 0,
+    warning: null,
+  },
 
   // Assembly
-  { instruction: "Spoon the cream over the biscuit base." },
-  { instruction: "Level the surface gently." },
-  { instruction: "Add fruit jam (about 1–1½ teaspoons per glass)." },
-  { instruction: "Spread lightly." },
+  {
+    id: "s14",
+    actionVerb: "SPOON",
+    targetObject: "CREAM",
+    details: "Spoon the cream over the biscuit base.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s15",
+    actionVerb: "LEVEL",
+    targetObject: "SURFACE",
+    details: "Level the surface gently.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s16",
+    actionVerb: "ADD",
+    targetObject: "JAM",
+    details: "Add fruit jam, about 1 teaspoons per glass.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s17",
+    actionVerb: "SPREAD",
+    targetObject: "JAM",
+    details: "Spread lightly.",
+    timerSeconds: 0,
+    warning: null,
+  },
 
   // Finish
-  { instruction: "Cut fresh fruit (to taste) into small cubes." },
-  { instruction: "Place the fruit on top." },
-  { instruction: "Check final layers." },
-  { instruction: "Serve or chill briefly." },
+  {
+    id: "s18",
+    actionVerb: "CUT",
+    targetObject: "FRUIT",
+    details: "Cut fresh fruit into small cubes.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s19",
+    actionVerb: "ADD",
+    targetObject: "FRUIT",
+    details: "Place the fruit on top.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s20",
+    actionVerb: "CHECK",
+    targetObject: "LAYERS",
+    details: "Check final layers.",
+    timerSeconds: 0,
+    warning: null,
+  },
+  {
+    id: "s21",
+    actionVerb: "SERVE",
+    targetObject: "DESSERT",
+    details: "Serve or chill briefly.",
+    timerSeconds: 0,
+    warning: null,
+  },
 ] as const;
