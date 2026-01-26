@@ -2,26 +2,31 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
 import { ALL_TOOLS } from "@/lib/tools/registry";
+import {
+  PINNED_RECIPE,
+  PINNED_RECIPE_STEPS,
+  PINNED_RECIPE_TITLE,
+} from "@/lib/pinnedRecipe";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// ✅ helper: force pinned recipe as option #1 and keep exactly 4
+function injectPinnedRecipe(recipes: any[]) {
+  const list = Array.isArray(recipes) ? recipes : [];
+
+  const withoutPinned = list.filter(
+    (r) =>
+      (r?.title ?? "").toLowerCase().trim() !==
+      PINNED_RECIPE_TITLE.toLowerCase().trim(),
+  );
+
+  return [PINNED_RECIPE, ...withoutPinned].slice(0, 4);
+}
+
 /**
  * Main API Route for the AR Cooking Assistant.
- *
- * This endpoint acts as the central "Brain" of the application.
- * It follows a stateless Request/Response pattern where the frontend sends
- * the current full state of the application (timers, inventory, recipes) along with
- * the user's voice command.
- *
- * The route uses OpenAI's GPT-4o-mini model with Function Calling (Tools) to:
- * 1. Analyze the user's intent based on the provided context.
- * 2. Select the appropriate tool to manipulate the state (e.g., start a timer, find a recipe).
- * 3. Enforce strict behavioral rules defined in the System Prompt.
- *
- * @param req - The incoming HTTP request containing the JSON payload with `userSpeech` and app state snapshots.
- * @returns A JSON response containing the determined `intent` and specific action data for the frontend.
  */
 export async function POST(req: Request) {
   try {
@@ -41,9 +46,6 @@ export async function POST(req: Request) {
     // -------------------------------------------------------------------------
     // 2. CONTEXT BUILDING
     // -------------------------------------------------------------------------
-    // Converts raw JSON state arrays into human-readable strings for the LLM.
-    // This allows the AI to "see" what the user sees in the AR interface.
-
     const timerContextString =
       activeTimers && activeTimers.length > 0
         ? activeTimers
@@ -56,16 +58,12 @@ export async function POST(req: Request) {
 
     const fridgeContextString =
       fridgeItems && fridgeItems.length > 0
-        ? fridgeItems
-            .map((i: any) => `${i.quantity ?? 1}x ${i.name}`)
-            .join("\n")
+        ? fridgeItems.map((i: any) => `${i.quantity ?? 1}x ${i.name}`).join("\n")
         : "NONE";
 
     const shoppingContextString =
       shoppingList && shoppingList.length > 0
-        ? shoppingList
-            .map((i: any) => `${i.quantity ?? 1}x ${i.label}`)
-            .join(", ")
+        ? shoppingList.map((i: any) => `${i.quantity ?? 1}x ${i.label}`).join(", ")
         : "EMPTY";
 
     const recipesContextString =
@@ -84,11 +82,8 @@ export async function POST(req: Request) {
     console.log(`🎤 User: "${userSpeech}"`);
 
     // -------------------------------------------------------------------------
-    // 3. SYSTEM PROMPT DEFINITION
+    // 3. SYSTEM PROMPT
     // -------------------------------------------------------------------------
-    // Injects the Persona, the Context, and the Critical Behavioral Rules.
-    // This ensures the AI acts as a functional controller rather than a chatty bot.
-
     const systemPrompt = `
       You are an expert AR Cooking Assistant.
       
@@ -107,18 +102,18 @@ export async function POST(req: Request) {
 
       BEHAVIORAL RULES:
       - TIMERS: If a matching timer is IDLE, start it. BUT if the user says "another", "new", or if the existing timer is already RUNNING, you MUST create a NEW timer (action='start'). Allow multiple concurrent timers.
-      - RECIPES: When the user asks for food ideas, NEVER output a bulleted text list. You are an AR interface, not a chatbot. ALWAYS call 'generate_recipe_ideas' to display the visual cards.
-      - INGREDIENTS MATCHING: When generating recipes, strictly compare the required ingredients with the "Fridge Inventory" context to populate 'ingredientsYouHave' and 'ingredientsMissing' accurately.
+      - RECIPES: When the user asks for food ideas, NEVER output a bulleted text list. ALWAYS call 'generate_recipe_ideas' to display the visual cards.
+      - INGREDIENTS MATCHING: When generating recipes, strictly compare ingredients with the "Fridge Inventory" context to populate 'ingredientsYouHave' and 'ingredientsMissing' accurately.
       - COOKING MODE: If the user says "Start cooking", call 'generate_cooking_steps'.
-      - NAVIGATION: If the context shows a recipe is ACTIVE (Cooking Now), interpret "Next", "Back", or "Repeat" as 'navigate_steps', NOT as generic chat.
-      - SAFETY: When generating steps, be paranoid about safety. Always flag hot items or raw meat in the 'warning' field.
-      - SHOPPING ACTIONS: If the user says "Add [item]", ALWAYS use action='add'. Even if the item is already on the list, DO NOT use 'remove'. Only use 'remove' if the user explicitly says "remove", "delete", "check off", or "I bought/got it".
-      - SHOPPING vs FRIDGE: Distinguish carefully between "I have" (Fridge Inventory) and "I need/buy" (Shopping List).
-      - DATA EXTRACTION: When the user mentions multiple items (e.g. "butter and potatoes"), you MUST include ALL of them in the tool call's 'items' array. NEVER truncate the list.
-      - LISTS: Never read the Shopping List or Recipe List aloud. Always use the corresponding TOOL ('manage_shopping_list' with action='show', or 'generate_recipe_ideas') to display the UI.
-      - VISION: If the user says "Scan", "Look", or "See what I have", ALWAYS use 'manage_fridge_inventory' with action='scan'. Do not say "I cannot see", just trigger the tool.
-      - GENERAL: Only use text replies (QUERY) for general knowledge questions (e.g. "Calories in egg?"). KEEP ANSWERS EXTREMELY CONCISE and in ENGLISH (Max 1-2 sentences). Be direct, no conversational filler or fluff.
-      - UNIT CONVERSION: If the user asks for a unit conversion (e.g. F to C, Cups to Grams), perform the math accurately and reply with a concise text answer (QUERY).
+      - NAVIGATION: If a recipe is ACTIVE, interpret "Next", "Back", "Repeat" as 'navigate_steps'.
+      - SAFETY: Flag hot items or raw meat in 'warning'.
+      - SHOPPING ACTIONS: "Add [item]" -> action='add'. Use 'remove' ONLY if user explicitly says remove/delete/bought.
+      - SHOPPING vs FRIDGE: Distinguish "I have" (Fridge) vs "I need" (Shopping).
+      - DATA EXTRACTION: If user says multiple items, include ALL in tool call array.
+      - LISTS: Never read lists aloud. Use tools.
+      - VISION: "Scan/Look/See what I have" -> use 'manage_fridge_inventory' action='scan'.
+      - GENERAL: Only use text replies for general knowledge. Max 1-2 sentences, English.
+      - UNIT CONVERSION: Do the math accurately, concise reply.
     `;
 
     // -------------------------------------------------------------------------
@@ -132,7 +127,7 @@ export async function POST(req: Request) {
       ],
       tools: ALL_TOOLS,
       tool_choice: "auto",
-      temperature: 0, // Deterministic output
+      temperature: 0,
     });
 
     const message = response.choices[0].message;
@@ -140,8 +135,6 @@ export async function POST(req: Request) {
     // -------------------------------------------------------------------------
     // 5. INTENT MAPPING
     // -------------------------------------------------------------------------
-    // Maps the AI's tool call to a specific frontend Intent string.
-
     if (message.tool_calls && message.tool_calls.length > 0) {
       const toolCall = message.tool_calls[0];
 
@@ -162,7 +155,7 @@ export async function POST(req: Request) {
       if (fnName === "manage_timer") {
         return NextResponse.json({
           intent: "TIMER",
-          ...args, // action, label, seconds, id
+          ...args,
         });
       }
 
@@ -170,7 +163,7 @@ export async function POST(req: Request) {
       if (fnName === "manage_shopping_list") {
         return NextResponse.json({
           intent: "SHOPPING_LIST",
-          ...args, // action, item, quantity
+          ...args,
         });
       }
 
@@ -178,27 +171,31 @@ export async function POST(req: Request) {
       if (fnName === "manage_fridge_inventory") {
         return NextResponse.json({
           intent: "FRIDGE_INVENTORY",
-          ...args, // action, items
+          ...args,
         });
       }
 
       // --- RECIPE SUGGESTIONS (GENERATION) ---
       if (fnName === "generate_recipe_ideas") {
-        return NextResponse.json({
-          intent: "SUGGEST_RECIPE",
-          data: {
-            recipes: args.recipes,
-            selectedRecipeTitle: null,
-          },
-        });
-      }
+  const recipes = injectPinnedRecipe(args.recipes);
+
+  return NextResponse.json({
+    intent: "SUGGEST_RECIPE",
+    data: {
+      recipes,
+      selectedTitle: null,
+    },
+  });
+}
+
 
       // --- RECIPE PREVIEW (SELECTION) ---
       if (fnName === "select_recipe") {
+        // ✅ keep the existing list (IMPORTANT for UI)
         return NextResponse.json({
           intent: "SUGGEST_RECIPE",
           data: {
-            recipes: [],
+            recipes: currentRecipes, // ✅ keep what was already visible
             selectedTitle: args.title,
           },
         });
@@ -209,29 +206,37 @@ export async function POST(req: Request) {
         return NextResponse.json({
           intent: "SUGGEST_RECIPE",
           data: {
-            recipes: [],
-            selectedRecipeTitle: null,
+            recipes: currentRecipes, // ✅ return to list
+            selectedTitle: null,
           },
         });
       }
 
       // --- COOKING SESSION (START) ---
       if (fnName === "generate_cooking_steps") {
-        return NextResponse.json({
-          intent: "GENERATE_RECIPE",
-          recipe: {
-            title: args.title,
-            steps: args.steps,
-            ingredients: [],
-          },
-        });
-      }
+  const title = (args.title ?? "").toLowerCase();
+
+  const isPinned =
+    title.includes(PINNED_RECIPE_TITLE.toLowerCase()) ||
+    PINNED_RECIPE_TITLE.toLowerCase().includes(title);
+
+  return NextResponse.json({
+    intent: "GENERATE_RECIPE",
+    recipe: {
+      title: isPinned ? PINNED_RECIPE_TITLE : args.title,
+      steps: isPinned ? PINNED_RECIPE_STEPS : args.steps,
+      ingredients: [],
+    },
+  });
+}
+
+
 
       // --- COOKING NAVIGATION (STEPS) ---
       if (fnName === "navigate_steps") {
         return NextResponse.json({
           intent: "NAVIGATE",
-          ...args, // direction, target
+          ...args,
         });
       }
     }
@@ -239,7 +244,6 @@ export async function POST(req: Request) {
     // -------------------------------------------------------------------------
     // 6. FALLBACK (QUERY)
     // -------------------------------------------------------------------------
-    // If no tool was called, return the text response as a generic query answer.
     return NextResponse.json({
       intent: "QUERY",
       answer: message.content || "I didn't understand that command.",
